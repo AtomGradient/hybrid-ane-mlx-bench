@@ -207,12 +207,15 @@ class HybridInferenceEngine:
             chunk_out = chunk_model.predict(chunk_input)
 
             # Collect cache outputs (all keys except hidden_states/logits)
+            skip_keys = {"hidden_states", "output_hidden_states", "logits"}
             for key, val in chunk_out.items():
-                if key not in ("hidden_states", "logits"):
+                if key not in skip_keys:
                     all_cache_outputs[key] = val
 
             # Pass hidden_states to next chunk (if not last)
-            if "hidden_states" in chunk_out:
+            if "output_hidden_states" in chunk_out:
+                hidden_states = chunk_out["output_hidden_states"]
+            elif "hidden_states" in chunk_out:
                 hidden_states = chunk_out["hidden_states"]
 
         # Extract logits from last chunk

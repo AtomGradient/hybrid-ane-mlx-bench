@@ -83,8 +83,16 @@ def get_chunk_output_names(
     chunk_size = base + (1 if chunk_idx < extra else 0)
     end = start + chunk_size
 
+    is_first = chunk_idx == 0
     is_last = chunk_idx == num_chunks - 1
-    names = ["logits" if is_last else "hidden_states"]
+    if is_last:
+        first_name = "logits"
+    elif is_first:
+        first_name = "hidden_states"
+    else:
+        # Intermediate chunks: input is "hidden_states", so output must differ
+        first_name = "output_hidden_states"
+    names = [first_name]
 
     for i in range(start, end):
         if _is_linear_layer(i, interval):
