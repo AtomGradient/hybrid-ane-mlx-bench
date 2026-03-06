@@ -94,7 +94,7 @@ Single-token ANE dispatch latency: ~42 ms/token.
 |--------|---------|---------------|--------|--------|
 | short | 56ms | 274ms | 769ms | GPU (14× faster than ANE-LM) |
 | medium | 69ms | 411ms | 5,867ms | GPU (85× faster than ANE-LM) |
-| long | 96ms | 100ms | 17,831ms | GPU ≈ Hybrid (186× faster than ANE-LM) |
+| long | 96ms | 100ms | 17,831ms | GPU ≈ CoreML Hybrid (186× faster than ANE-LM) |
 
 ## Key Finding: Batching is Critical for ANE
 

@@ -498,6 +498,14 @@ by a factor of $6\times$.
 Any pipeline based on sequential ANE prefill is therefore unsuitable for
 interactive inference at these prompt lengths, regardless of decode speed.
 
+\textbf{Implication}: the bottleneck is \emph{batched vs.\ sequential
+dispatch}, not ANE hardware throughput.
+CoreML batched prefill (Pipeline~2) achieves 4{,}128\,tok/s on the same ANE,
+matching GPU throughput at 410 tokens (100\,ms vs.\ 96\,ms).
+If the private \texttt{AppleNeuralEngine.framework} API exposed a batched
+dispatch interface, ANE-LM Hybrid TTFT would theoretically approach GPU
+parity --- but the current API is limited to single-token dispatch.
+
 \subsection{When Does the Hybrid CoreML Approach Help?}
 
 Based on M2 Ultra measurements, Hybrid CoreML+MLX is only beneficial when

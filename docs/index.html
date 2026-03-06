@@ -428,9 +428,12 @@
                 Sequential ANE prefill + MLX GPU decode via a binary cache bridge. Achieves decode
                 parity with GPU baseline (69–72 tok/s) while reducing prefill GPU power by
                 <strong style="color:var(--gpu-green)">282×</strong> (62.05 W → 0.22 W).
+                TTFT is limited by the private API's sequential dispatch (~42 ms/token), not ANE hardware —
+                CoreML batched prefill on the same ANE matches GPU speed.
             </div>
             <div class="finding-text z">
                 通过二进制缓存桥接实现 ANE 顺序预填充 + MLX GPU 解码。解码速度与 GPU 基准持平（69–72 tok/s），同时将预填充 GPU 功耗降低 <strong style="color:var(--gpu-green)">282×</strong>（62.05 W → 0.22 W）。
+                TTFT 受限于私有 API 的逐 token 调度（~42 ms/token），而非 ANE 硬件——CoreML 批量预填充在同一 ANE 上可匹敌 GPU 速度。
             </div>
         </div>
     </div>
@@ -784,18 +787,20 @@
                     <td><span class="e">long</span><span class="z">长</span></td><td class="mono">410 (422 w/template)</td>
                     <td class="mono good">96</td><td class="mono ok">100</td>
                     <td class="mono slow">17,831</td><td class="mono slow">17,601</td>
-                    <td><span class="chip chip-gpu" style="font-size:0.7rem;padding:0.2rem 0.5rem;">GPU ≈ Hybrid</span></td>
+                    <td><span class="chip chip-gpu" style="font-size:0.7rem;padding:0.2rem 0.5rem;">GPU ≈ CoreML Hybrid</span></td>
                 </tr>
             </tbody>
         </table>
     </div>
     <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;" class="e">
         * ANE-LM uses Qwen3.5 chat template, adding ~12 system-prompt tokens to each input.<br>
-        * ANE-LM Hybrid: ANE-LM sequential prefill + MLX GPU decode, bridged via binary cache file. All numbers end-to-end measured.
+        * ANE-LM Hybrid: ANE-LM sequential prefill + MLX GPU decode, bridged via binary cache file. All numbers end-to-end measured.<br>
+        * ANE-LM Hybrid's slow TTFT is caused by the private API's sequential dispatch (~42 ms/token), not ANE hardware speed. CoreML batched prefill achieves 4,128 tok/s on the same ANE — proving the hardware can match GPU throughput when given batched input.
     </p>
     <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;" class="z">
         * ANE-LM 使用 Qwen3.5 对话模板，每个输入额外增加 ~12 个系统提示 token。<br>
-        * ANE-LM Hybrid：ANE-LM 顺序预填充 + MLX GPU 解码，通过二进制缓存文件桥接。所有数据均为端到端实测。
+        * ANE-LM Hybrid：ANE-LM 顺序预填充 + MLX GPU 解码，通过二进制缓存文件桥接。所有数据均为端到端实测。<br>
+        * ANE-LM Hybrid 的高 TTFT 源于私有 API 的逐 token 调度（~42 ms/token），而非 ANE 硬件速度。CoreML 批量预填充在同一 ANE 上达到 4,128 tok/s——证明硬件在批量输入下可匹敌 GPU 吞吐。
     </p>
 
     <h3><span class="e">Decode Throughput — 0.8B FP16 (all backends)</span><span class="z">解码吞吐量 — 0.8B FP16（全部后端）</span></h3>
@@ -868,8 +873,8 @@
             <div class="bar-label">ANE-LM Hybrid (cache bridge) — 17,601 ms</div>
             <div class="bar-row"><div class="bar-track"><div class="bar-fill" style="width:98.7%;background:linear-gradient(90deg,#7B68EE,#9b89ee)"><span class="bar-val">17,601 ms</span></div></div><span class="bar-num mono slow">17,601 ms</span></div>
         </div>
-        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;" class="e">Note: bars use log-scale equivalent visual widths for readability. All values end-to-end measured.</p>
-        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;" class="z">注：条形宽度使用对数等效视觉宽度以便阅读。所有数据均为端到端实测。</p>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;" class="e">Note: bars use log-scale equivalent visual widths for readability. All values end-to-end measured. ANE-LM Hybrid's 176× slower TTFT vs CoreML Hybrid is due to sequential dispatch (private API limitation), not ANE hardware — both use the same Neural Engine.</p>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;" class="z">注：条形宽度使用对数等效视觉宽度以便阅读。所有数据均为端到端实测。ANE-LM Hybrid 比 CoreML Hybrid 慢 176× 源于逐 token 调度（私有 API 限制），而非 ANE 硬件——两者使用相同的神经引擎。</p>
     </div>
 </section>
 
