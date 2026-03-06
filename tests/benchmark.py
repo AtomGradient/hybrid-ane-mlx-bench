@@ -251,6 +251,19 @@ def find_coreml_path(model_name: str, prompt_len: int) -> str | None:
 def run_benchmark(args):
     from engine import HybridInferenceEngine
 
+    # Optional power monitoring (requires sudo asitop running)
+    power_monitor = None
+    if not args.no_power:
+        try:
+            from tests.parse_power import PowerMonitor
+            power_monitor = PowerMonitor()
+            if power_monitor.filepath:
+                print(f"[PowerMonitor] Tracking power via {power_monitor.filepath}")
+            else:
+                power_monitor = None
+        except Exception as e:
+            print(f"[PowerMonitor] Disabled: {e}")
+
     results = load_existing_results()
     total_configs = len(args.models) * len(args.backends) * len(args.prompt_lengths)
     config_idx = 0
@@ -291,7 +304,8 @@ def run_benchmark(args):
                 for pl in args.prompt_lengths:
                     config_idx += 1
                     results = _run_config(engine, model_name, backend, pl,
-                                          args.num_runs, config_idx, total_configs, results)
+                                          args.num_runs, config_idx, total_configs, results,
+                                          power_monitor=power_monitor)
 
                 del engine
                 gc.collect()
@@ -355,7 +369,8 @@ def run_benchmark(args):
                         continue
 
                     results = _run_config(engine, model_name, backend, pl,
-                                          args.num_runs, config_idx, total_configs, results)
+                                          args.num_runs, config_idx, total_configs, results,
+                                          power_monitor=power_monitor)
 
                     del engine
                     gc.collect()
@@ -365,13 +380,18 @@ def run_benchmark(args):
 
 
 def _run_config(engine, model_name, backend, pl, num_runs, config_idx,
-                total_configs, results):
+                total_configs, results, power_monitor=None):
     """运行单个配置的多次测试，返回更新后的 results。"""
     prompt_text = PROMPTS[pl]
+    phase_key = f"{model_name}_{backend}_{pl}"
 
     print(f"\n[{config_idx}/{total_configs}] "
           f"Qwen3.5-{model_name} / {backend} / {pl} "
           f"({num_runs} runs)")
+
+    # Start power tracking for this config (covers all runs including warmup)
+    if power_monitor:
+        power_monitor.mark(phase_key)
 
     run_metrics = []
     for run_idx in range(num_runs):
@@ -433,6 +453,21 @@ def _run_config(engine, model_name, backend, pl, num_runs, config_idx,
               f"decode={median_metrics['decode_tokens_per_sec']:.1f}tok/s "
               f"ttft={median_metrics['ttft_ms']:.0f}ms "
               f"peak_mem={median_metrics['peak_memory_gb']:.2f}GB")
+
+    # Attach power data for this config
+    if power_monitor and power_monitor._current_phase == phase_key:
+        power_monitor.stop()
+        phase_power = power_monitor.get_phase_data().get(phase_key, {})
+        if phase_power.get("count", 0) > 0:
+            entry["power_cpu_avg_mw"] = phase_power["cpu_power_mw"]["avg"]
+            entry["power_gpu_avg_mw"] = phase_power["gpu_power_mw"]["avg"]
+            entry["power_ane_avg_mw"] = phase_power["ane_power_mw"]["avg"]
+            entry["power_combined_avg_mw"] = phase_power["combined_power_mw"]["avg"]
+            entry["power_samples"] = phase_power["count"]
+            print(f"  → Power: CPU={entry['power_cpu_avg_mw']:.0f}mW "
+                  f"GPU={entry['power_gpu_avg_mw']:.0f}mW "
+                  f"ANE={entry['power_ane_avg_mw']:.0f}mW "
+                  f"({entry['power_samples']} samples)")
 
     results.append(entry)
     save_results(results)
@@ -499,6 +534,10 @@ def main():
     parser.add_argument(
         "--append", action="store_true",
         help="追加到已有结果（而非清空重来）",
+    )
+    parser.add_argument(
+        "--no-power", action="store_true",
+        help="禁用 PowerMonitor（不采集功耗数据）",
     )
     args = parser.parse_args()
 
