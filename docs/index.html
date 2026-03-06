@@ -415,10 +415,10 @@
             <div class="finding-title"><span class="e">ANE-LM (Private API)</span><span class="z">ANE-LM（私有 API）</span></div>
             <div class="finding-text e">
                 Sequential per-token ANE dispatch via <code>AppleNeuralEngine.framework</code> private
-                APIs. Establishes the single-token ANE dispatch latency floor (~43 ms/token).
+                APIs. Establishes the single-token ANE dispatch latency floor (~42 ms/token).
             </div>
             <div class="finding-text z">
-                通过 <code>AppleNeuralEngine.framework</code> 私有 API 进行逐 token ANE 调度。建立单 token ANE 调度延迟下限（~43 ms/token）。
+                通过 <code>AppleNeuralEngine.framework</code> 私有 API 进行逐 token ANE 调度。建立单 token ANE 调度延迟下限（~42 ms/token）。
             </div>
         </div>
         <div class="finding-card" style="border-top-color:#9b89ee">
@@ -426,13 +426,13 @@
             <div class="finding-title"><span class="e">ANE-LM Hybrid</span><span class="z">ANE-LM 混合推理</span></div>
             <div class="finding-text e">
                 Sequential ANE prefill + MLX GPU decode via a binary cache bridge. Achieves decode
-                parity with GPU baseline (69–72 tok/s) while reducing prefill GPU power by
+                parity with GPU baseline (67–70 tok/s) while reducing prefill GPU power by
                 <strong style="color:var(--gpu-green)">282×</strong> (62.05 W → 0.22 W).
                 TTFT is limited by the private API's sequential dispatch (~42 ms/token), not ANE hardware —
                 CoreML batched prefill on the same ANE matches GPU speed.
             </div>
             <div class="finding-text z">
-                通过二进制缓存桥接实现 ANE 顺序预填充 + MLX GPU 解码。解码速度与 GPU 基准持平（69–72 tok/s），同时将预填充 GPU 功耗降低 <strong style="color:var(--gpu-green)">282×</strong>（62.05 W → 0.22 W）。
+                通过二进制缓存桥接实现 ANE 顺序预填充 + MLX GPU 解码。解码速度与 GPU 基准持平（67–70 tok/s），同时将预填充 GPU 功耗降低 <strong style="color:var(--gpu-green)">282×</strong>（62.05 W → 0.22 W）。
                 TTFT 受限于私有 API 的逐 token 调度（~42 ms/token），而非 ANE 硬件——CoreML 批量预填充在同一 ANE 上可匹敌 GPU 速度。
             </div>
         </div>
@@ -485,8 +485,8 @@
     <div class="pipeline">
         <div class="pipe-node ane">
             <div class="pipe-title" style="color:var(--ane-blue)"><span class="e">Sequential Prefill (ANE)</span><span class="z">顺序预填充（ANE）</span></div>
-            <div class="pipe-sub e">One token per ANE dispatch call. ~43 ms/token. No batching. TTFT = N_tokens × 43 ms.</div>
-            <div class="pipe-sub z">每次 ANE 调度处理一个 token。~43 ms/token。无批处理。TTFT = N_tokens × 43 ms。</div>
+            <div class="pipe-sub e">One token per ANE dispatch call. ~42 ms/token. No batching. TTFT = N_tokens × 42 ms.</div>
+            <div class="pipe-sub z">每次 ANE 调度处理一个 token。~42 ms/token。无批处理。TTFT = N_tokens × 42 ms。</div>
         </div>
         <div class="pipe-arrow">→</div>
         <div class="pipe-node ane">
@@ -500,9 +500,9 @@
     <div class="pipeline">
         <div class="pipe-node ane">
             <div class="pipe-title" style="color:#9b89ee"><span class="e">Sequential Prefill (ANE)</span><span class="z">顺序预填充（ANE）</span></div>
-            <div class="pipe-sub e">Same as ANE-LM: one token per ANE dispatch call. ~43 ms/token.
+            <div class="pipe-sub e">Same as ANE-LM: one token per ANE dispatch call. ~42 ms/token.
                 TTFT identical to Pipeline 3. GPU power: 0.22 W vs 62.05 W for GPU prefill.</div>
-            <div class="pipe-sub z">与 ANE-LM 相同：每次 ANE 调度处理一个 token。~43 ms/token。TTFT 与管线 3 相同。GPU 功耗：0.22 W vs GPU 预填充的 62.05 W。</div>
+            <div class="pipe-sub z">与 ANE-LM 相同：每次 ANE 调度处理一个 token。~42 ms/token。TTFT 与管线 3 相同。GPU 功耗：0.22 W vs GPU 预填充的 62.05 W。</div>
         </div>
         <div class="pipe-arrow">→</div>
         <div class="pipe-node gpu">
@@ -514,8 +514,8 @@
         <div class="pipe-arrow">→</div>
         <div class="pipe-node gpu">
             <div class="pipe-title" style="color:var(--gpu-green)"><span class="e">Decode (GPU via MLX)</span><span class="z">解码（GPU via MLX）</span></div>
-            <div class="pipe-sub e">Full MLX GPU decode path. Measured: 69–72 tok/s, matching GPU baseline. 3× faster than ANE-LM pure decode.</div>
-            <div class="pipe-sub z">完整的 MLX GPU 解码路径。实测：69–72 tok/s，与 GPU 基准持平。比 ANE-LM 纯解码快 3×。</div>
+            <div class="pipe-sub e">Full MLX GPU decode path. Measured: 67–70 tok/s, matching GPU baseline. 3× faster than ANE-LM pure decode.</div>
+            <div class="pipe-sub z">完整的 MLX GPU 解码路径。实测：67–70 tok/s，与 GPU 基准持平。比 ANE-LM 纯解码快 3×。</div>
         </div>
     </div>
 </section>
@@ -951,7 +951,7 @@
         Unlike 0.8B where CoreML dispatch overhead added 200–340 ms, the 2B BF16 model shows <strong>zero overhead</strong> — Hybrid TTFT exactly matches GPU baseline at all three prompt lengths (short/medium/long). The larger hidden dimension (1536 vs 1024) amortizes CoreML dispatch cost even at seq64. Decode throughput (100–104 tok/s) matches baseline (100–101 tok/s).
     </p>
     <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;" class="z">
-        与 0.8B 中 CoreML 调度增加 200–340 ms 的开销不同，2B BF16 模型 <strong>零开销</strong> — 混合 TTFT 在所有 prompt 长度上精确匹配 GPU 基准。更大的隐层维度（1536 vs 1024）使 CoreML 调度成本即使在 seq64 也能被摊销。解码吞吐量（102–104 tok/s）略超基准（100–101 tok/s）。
+        与 0.8B 中 CoreML 调度增加 200–340 ms 的开销不同，2B BF16 模型 <strong>零开销</strong> — 混合 TTFT 在所有 prompt 长度上精确匹配 GPU 基准。更大的隐层维度（1536 vs 1024）使 CoreML 调度成本即使在 seq64 也能被摊销。解码吞吐量（100–104 tok/s）匹配基准（100–101 tok/s）。
     </p>
 </section>
 
@@ -1170,7 +1170,7 @@
             <div class="finding-title"><span class="e">Sequential ANE ≠ Batched ANE</span><span class="z">顺序 ANE ≠ 批量 ANE</span></div>
             <div class="finding-text e">
                 ANE-LM's per-token dispatch via private API yields ~24 tok/s — 3× slower than GPU.
-                Each ANE kernel call takes ~43 ms, making TTFT proportional to prompt length.
+                Each ANE kernel call takes ~42 ms, making TTFT proportional to prompt length.
                 Batched CoreML processing is fundamentally different from sequential dispatch.
             </div>
             <div class="finding-text z">

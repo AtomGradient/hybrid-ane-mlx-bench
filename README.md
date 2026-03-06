@@ -14,7 +14,7 @@ We benchmark four inference strategies for Qwen3.5 on Apple Silicon, revealing h
 | **MLX GPU** (baseline) | GPU batched | GPU | **96 ms** |
 | **CoreML + MLX** (hybrid) | ANE batched | GPU | **100 ms** |
 | **ANE-LM** (private API) | ANE sequential | ANE | 17,831 ms |
-| **ANE-LM Hybrid** | ANE sequential | GPU | 17,525 ms |
+| **ANE-LM Hybrid** | ANE sequential | GPU | 17,601 ms |
 
 > **Key finding**: ANE batched prefill (CoreML, seq512) reaches GPU-level throughput at ~410 prompt tokens. Sequential ANE dispatch (private API) caps at ~24 tok/s regardless of prompt length — 3× slower than GPU decode. Replacing ANE decode with GPU decode (ANE-LM Hybrid) gives 3× better decode but cannot fix the sequential-ANE prefill bottleneck.
 
@@ -55,9 +55,9 @@ the MLX GPU baseline. Results are combined to give end-to-end TTFT and decode me
 
 | Prompt | Tokens | GPU | Hybrid ANE | ANE-LM | ANE-LM Hybrid |
 |--------|--------|-----|-----------|--------|---------------|
-| short | 6 / 18* | 56 ms | 274 ms | 769 ms | 744 ms |
-| medium | 133 / 145* | 69 ms | 411 ms | 5,867 ms | 5,895 ms |
-| long | 410 / 422* | 96 ms | 100 ms | 17,831 ms | 17,525 ms |
+| short | 6 / 18* | 56 ms | 274 ms | 769 ms | 767 ms |
+| medium | 133 / 145* | 69 ms | 411 ms | 5,867 ms | 6,060 ms |
+| long | 410 / 422* | 96 ms | 100 ms | 17,831 ms | 17,601 ms |
 
 *ANE-LM adds chat template tokens (~12 system tokens). ANE-LM Hybrid phases benchmarked independently (prefill: ANE-LM, decode: MLX GPU).
 

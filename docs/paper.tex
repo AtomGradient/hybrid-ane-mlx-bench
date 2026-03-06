@@ -74,8 +74,8 @@ decode via MLX, bridged through a custom KV-cache converter;
 \texttt{AppleNeuralEngine.framework} APIs;
 (4)~\textbf{ANE-LM Hybrid} --- sequential ANE prefill with MLX GPU decode,
 bridged via a binary cache transfer (KV, SSM, and conv states).
-Experiments on an M2 Ultra (192\,GB, 800\,GB/s) with Qwen3.5-0.8B (FP16)
-reveal four key findings:
+Experiments on an M2 Ultra (192\,GB, 800\,GB/s) with four Qwen3.5 variants
+(0.8B FP16, 2B BF16, 2B 8-bit, 9B 8-bit) reveal four key findings:
 (i)~ANE batched prefill (CoreML, \texttt{seq512}) reaches parity with GPU
 prefill at $\sim$410 prompt tokens;
 (ii)~ANE sequential inference (private API) yields a constant dispatch
@@ -517,7 +517,7 @@ The three prefill strategies differ fundamentally in their compute pattern:
 
 \textbf{MLX GPU (batched)}: processes the full prompt in one forward pass.
 GPU prefill throughput scales with prompt length due to increasing GPU
-utilization ($107\,\text{tok/s}$ at 6 tokens; $4{,}270\,\text{tok/s}$ at
+utilization ($107\,\text{tok/s}$ at 6 tokens; $4{,}285\,\text{tok/s}$ at
 410 tokens).
 
 \textbf{Hybrid CoreML (batched)}: processes all tokens in one CoreML call
