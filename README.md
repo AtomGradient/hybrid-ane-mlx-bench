@@ -1,7 +1,7 @@
 # Hybrid ANE-MLX-Bench: Disaggregated LLM Inference on Apple Silicon
 
 [![Paper PDF](https://img.shields.io/badge/paper-PDF-red)](https://atomgradient.github.io/hybrid-ane-mlx-bench/paper.pdf)
-[![GitHub Pages](https://img.shields.io/badge/website-live-blue)](https://atomgradient.github.io/hybrid-ane-mlx-bench)
+[![GitHub Pages](https://img.shields.io/badge/website-live-blue)](hybrid-ane-mlx-bench)
 
 **Paper**: [Disaggregated LLM Inference on Apple Silicon: CoreML ANE Prefill + MLX GPU Decode](https://atomgradient.github.io/hybrid-ane-mlx-bench/paper.pdf)
 
@@ -158,7 +158,7 @@ python tests/benchmark_ane_lm_hybrid.py --runs 4 --append
 ## Citation
 
 ```bibtex
-@misc{atomgradient2025ane,
+@misc{atomgradient2026ane,
   title  = {Disaggregated LLM Inference on Apple Silicon: CoreML ANE Prefill + MLX GPU Decode},
   author = {AtomGradient},
   year   = {2026},
