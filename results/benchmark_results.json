@@ -361,5 +361,50 @@
     "decode_tokens_per_sec": 100.7,
     "peak_memory_gb": 4.67,
     "total_time_ms": 2108.6
+  },
+  {
+    "model": "Qwen3.5-9B-8bit",
+    "quant": "8-bit",
+    "backend": "hybrid_ane",
+    "prompt_length": "short",
+    "status": "OK",
+    "prompt_tokens": 6,
+    "generated_tokens": 200,
+    "prefill_time_ms": 318.58,
+    "prefill_tokens_per_sec": 18.8,
+    "ttft_ms": 318.94,
+    "decode_tokens_per_sec": 50.0,
+    "peak_memory_gb": 10.12,
+    "total_time_ms": 4317.39
+  },
+  {
+    "model": "Qwen3.5-9B-8bit",
+    "quant": "8-bit",
+    "backend": "hybrid_ane",
+    "prompt_length": "medium",
+    "status": "OK",
+    "prompt_tokens": 133,
+    "generated_tokens": 200,
+    "prefill_time_ms": 670.66,
+    "prefill_tokens_per_sec": 198.3,
+    "ttft_ms": 671.5,
+    "decode_tokens_per_sec": 49.7,
+    "peak_memory_gb": 10.13,
+    "total_time_ms": 4688.62
+  },
+  {
+    "model": "Qwen3.5-9B-8bit",
+    "quant": "8-bit",
+    "backend": "hybrid_ane",
+    "prompt_length": "long",
+    "status": "OK",
+    "prompt_tokens": 410,
+    "generated_tokens": 200,
+    "prefill_time_ms": 1237.66,
+    "prefill_tokens_per_sec": 331.3,
+    "ttft_ms": 1265.13,
+    "decode_tokens_per_sec": 47.6,
+    "peak_memory_gb": 10.14,
+    "total_time_ms": 5466.95
   }
 ]

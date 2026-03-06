@@ -118,7 +118,10 @@ def run_single(engine, prompt_text: str, tokenizer) -> dict:
 
     # --- Prefill ---
     t_prefill_start = time.perf_counter()
-    if engine.coreml_model:
+    if engine.coreml_chunks:
+        seq_len = engine._select_seq_len(prompt_len)
+        last_logits, cache = engine._prefill_chunked(tokens, seq_len)
+    elif engine.coreml_model:
         seq_len = engine._select_seq_len(prompt_len)
         last_logits, cache = engine._prefill_coreml(tokens, seq_len)
     else:
@@ -208,6 +211,17 @@ def save_results(results: list[dict]):
 # 主逻辑
 # ---------------------------------------------------------------------------
 
+
+# CoreML models are converted from original HF weights (FP16/BF16), not quantized.
+# Map model names to the slug used in CoreML filenames.
+COREML_SLUG = {
+    "0.8B":     "qwen3_5-0_8b",
+    "2B-8bit":  None,            # 8-bit incompatible with CoreML conversion
+    "2B-bf16":  "qwen3_5-2b-bf16",
+    "9B-8bit":  "qwen3_5-9b",    # converted from FP16 HF weights
+}
+
+
 def find_coreml_path(model_name: str, prompt_len: int) -> str | None:
     """查找模型对应的 CoreML .mlpackage 路径，选择匹配 prompt 长度的 seq_len。
 
@@ -216,8 +230,13 @@ def find_coreml_path(model_name: str, prompt_len: int) -> str | None:
         ane_{name_slug}_prefill_seq{N}_chunk*of*.mlpackage (分块)
     """
     from engine import HybridInferenceEngine
+
+    slug = COREML_SLUG.get(model_name)
+    if slug is None:
+        return None  # model not compatible with CoreML conversion
+
     seq_len = HybridInferenceEngine._select_seq_len(prompt_len)
-    name_slug = f"Qwen3.5-{model_name}".lower().replace(".", "_")
+    name_slug = slug
     coreml_name = f"ane_{name_slug}_prefill_seq{seq_len}.mlpackage"
     coreml_path = ROOT / "models" / coreml_name
     if coreml_path.exists():

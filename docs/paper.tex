@@ -310,11 +310,13 @@ Model & Quant & Params & Size & CoreML \\
 Qwen3.5-0.8B & FP16 & 0.85B & 1.6\,GB & \checkmark \\
 Qwen3.5-2B & 8-bit & 1.54B & 2.0\,GB & $\times$ \\
 Qwen3.5-2B & BF16 & 1.54B & 4.0\,GB & \checkmark \\
-Qwen3.5-9B & 8-bit & 9.36B & 9.5\,GB & $\times$ \\
+Qwen3.5-9B & 8-bit$^\dagger$ & 9.36B & 9.5\,GB & \checkmark$^\dagger$ \\
 \bottomrule
 \end{tabular}
 \caption{Models benchmarked. ``CoreML'' indicates FP16/BF16 HF weights
-  are available for CoreML conversion.}
+  are available for CoreML conversion.
+  $^\dagger$9B: CoreML prefill converted from original FP16 HF weights;
+  MLX decode uses 8-bit quantized weights (mixed-precision hybrid).}
 \label{tab:models}
 \end{table}
 
@@ -440,6 +442,32 @@ The likely cause is that 2B's larger hidden dimension (1536 vs.\ 1024)
 provides enough compute to amortize CoreML dispatch overhead even at
 seq64.
 
+Table~\ref{tab:hybrid_9b} extends the Hybrid CoreML+MLX results to the
+largest model, Qwen3.5-9B.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Prompt & Tokens & seq\_len & TTFT & Decode & Ratio \\
+ & & & (ms) & (tok/s) & (vs.\ base) \\
+\midrule
+short & 6 & 64 & 319 & 50.0 & 8.2$\times$ \\
+medium & 133 & 256 & 672 & 49.7 & 2.5$\times$ \\
+long & 410 & 512 & 1{,}265 & 47.6 & 2.0$\times$ \\
+\bottomrule
+\end{tabular}
+\caption{Hybrid CoreML+MLX results for Qwen3.5-9B 8-bit (M2 Ultra).
+  CoreML prefill uses FP16 HF weights (4 chunks); MLX decode uses 8-bit
+  quantized weights.
+  Unlike 0.8B and 2B, the hybrid approach is \emph{always slower} than
+  GPU baseline (TTFT: 39/265/625\,ms).
+  Decode throughput drops 11--16\% vs.\ baseline (56.1--56.5\,tok/s),
+  likely due to mixed-precision cache bridge overhead.}
+\label{tab:hybrid_9b}
+\end{table}
+
 Table~\ref{tab:ane_lm} shows ANE-LM sequential inference.
 
 \begin{table}[h]
@@ -542,10 +570,13 @@ parity --- but the current API is limited to single-token dispatch.
 For \textbf{0.8B FP16} on M2 Ultra, Hybrid CoreML+MLX is only beneficial when
 prompt length exceeds $\approx$410 tokens (where CoreML overhead becomes
 negligible); for shorter prompts, MLX GPU is strictly better.
-However, \textbf{2B BF16} shows no dispatch penalty at any tested length
+\textbf{2B BF16} shows no dispatch penalty at any tested length
 (Table~\ref{tab:hybrid_2b}): TTFT matches GPU baseline even at 6 tokens.
 The larger model's compute-to-dispatch ratio amortizes CoreML overhead
 at all prompt lengths.
+However, \textbf{9B 8-bit} hybrid is \emph{always slower} than GPU baseline
+(Table~\ref{tab:hybrid_9b}): 4-chunk dispatch overhead and mixed-precision
+cache bridging prevent any crossover, even at 410 tokens.
 Factors that shift the crossover point:
 \begin{itemize}[topsep=2pt,itemsep=1pt]
   \item \textbf{Weaker GPU}: M1 Max (32 cores) has $\approx$2$\times$
@@ -562,19 +593,31 @@ Factors that shift the crossover point:
     This is an important practical constraint for mobile deployment.
 \end{itemize}
 
-\subsection{Scaling Law: Larger Models Amortize Dispatch Overhead}
+\subsection{Scaling Law: Dispatch Overhead vs.\ Model Size}
 \label{sec:scaling}
 
-Our 0.8B~vs.~2B comparison reveals a clear scaling trend:
+Our 0.8B / 2B / 9B comparison reveals a non-monotonic scaling trend:
 
-\textbf{Model size $\uparrow$ $\Rightarrow$ dispatch overhead $\downarrow$}:
+\textbf{Model size $\uparrow$ $\Rightarrow$ dispatch overhead $\downarrow$}
+(for single-model CoreML):
 0.8B (hidden\_size=1024) incurs $\approx$250\,ms CoreML dispatch overhead at seq64;
 2B (hidden\_size=1536) incurs \emph{zero} overhead --- TTFT exactly matches GPU baseline.
 The cause is straightforward: larger hidden dimensions increase the
 compute-per-dispatch ratio, making the fixed IPC/dispatch cost negligible.
 
+\textbf{But: chunking reverses this for 9B.}
+The 9B model requires 4 CoreML chunks (vs.\ 1--2 for 0.8B/2B), quadrupling
+the number of CoreML \texttt{predict()} calls.
+Each chunk incurs its own IPC dispatch overhead, and intermediate hidden
+states must be passed between chunks.
+Additionally, 9B uses a mixed-precision cache bridge (FP16 CoreML $\to$
+8-bit MLX), introducing a 11--16\% decode throughput penalty.
+The result: 9B hybrid is \emph{always slower} than GPU baseline
+(Table~\ref{tab:hybrid_9b}), even at 410 tokens where 0.8B and 2B
+reach parity.
+
 \textbf{Prompt length $\uparrow$ $\Rightarrow$ prefill throughput $\uparrow$}:
-This holds for both models.
+This holds for all three models.
 0.8B achieves 4{,}128\,tok/s at seq512 (410 tokens) but only 22\,tok/s at
 seq64 (6 tokens), because the ANE processes a fixed-size tensor and
 longer real-token sequences waste less padding.
@@ -582,16 +625,18 @@ longer real-token sequences waste less padding.
 \textbf{Practical constraints of scaling up}:
 \begin{itemize}[topsep=2pt,itemsep=1pt]
   \item \textbf{Conversion time}: grows super-linearly.
-    2B seq512 requires $\approx$120\,min (vs.\ $\approx$22\,min for 0.8B
-    seq512) on M2 Ultra.
-  \item \textbf{First-load ANE compilation}: 2B seq256 takes 878\,s
-    ($\approx$15\,min) on first load; cached thereafter.
+    9B seq512 (4 chunks) requires $\approx$110\,min total
+    (vs.\ $\approx$22\,min for 0.8B seq512) on M2 Ultra.
+  \item \textbf{First-load ANE compilation}: 9B seq512 (4 chunks) takes
+    $\approx$56\,min on first load; cached thereafter.
   \item \textbf{Storage}: hybrid deployment stores both MLX weights and
-    CoreML packages (e.g.\ 4.0\,GB + 3$\times$2.3\,GB = 10.9\,GB for 2B).
+    CoreML packages (e.g.\ 9.5\,GB + 4$\times$8.3\,GB $\approx$ 42.7\,GB
+    for 9B seq512).
 \end{itemize}
 
 \textbf{Conclusion}: hybrid CoreML+MLX inference is most advantageous for
-\emph{larger models with longer prompts}.
+\emph{medium-sized models (1--3B) with long prompts}, where dispatch
+overhead is amortized without requiring multi-chunk splitting.
 On mobile Apple Silicon (A-series, 6--8 GPU cores), the crossover point
 falls even further, making ANE-assisted prefill beneficial for nearly all
 conversational prompts (Table~\ref{tab:crossover}).
@@ -755,9 +800,9 @@ backends, widely benchmarked on Apple Silicon.
 \label{sec:future}
 
 \begin{itemize}[topsep=2pt,itemsep=1pt]
-  \item \textbf{2B-BF16 long context and 9B hybrid benchmark}: 2B-BF16 short
-    and medium prompts now benchmarked (Table~\ref{tab:hybrid_2b}); seq512
-    and 9B conversions are in progress.
+  \item \textbf{Single-model 9B conversion}: The current 9B hybrid approach
+    requires 4 CoreML chunks, which incurs significant multi-dispatch overhead.
+    Single-model conversion (if memory permits) could eliminate this penalty.
   \item \textbf{seq\_len $>$ 512}: Longer context would further reduce the
     relative CoreML dispatch overhead.
   \item \textbf{Mobile validation}: Crossover-point estimates in

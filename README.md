@@ -71,6 +71,16 @@ the MLX GPU baseline. Results are combined to give end-to-end TTFT and decode me
 
 Unlike 0.8B, the 2B BF16 model shows **zero dispatch overhead** — Hybrid TTFT matches GPU baseline at all three prompt lengths. Decode: 100–104 tok/s (matches baseline 100–101 tok/s).
 
+### TTFT — Qwen3.5-9B 8-bit (Hybrid CoreML + MLX)
+
+| Prompt | Tokens | Baseline GPU | Hybrid ANE | Ratio |
+|--------|--------|-------------|-----------|-------|
+| short | 6 | 39 ms | 319 ms | 8.2× slower |
+| medium | 133 | 265 ms | 672 ms | 2.5× slower |
+| long | 410 | 625 ms | 1,265 ms | 2.0× slower |
+
+The 9B model shows **no crossover point** — hybrid ANE is always slower than GPU baseline. Contributing factors: 4-chunk CoreML dispatch overhead, and mixed-precision cache bridge (FP16 CoreML prefill → 8-bit MLX decode) causes ~11-16% decode degradation (47.6-50.0 vs 56.1-56.5 tok/s).
+
 ## Repository Structure
 
 ```

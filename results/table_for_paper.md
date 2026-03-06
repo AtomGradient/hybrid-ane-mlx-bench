@@ -42,11 +42,15 @@
 | Qwen3.5-2B | BF16 | short | 6 | 64 | 22 | 273 | 22 | 104.2 | 4.16 | OK |
 | Qwen3.5-2B | BF16 | medium | 133 | 256 | 54 | 2477 | 54 | 102.3 | 4.37 | OK |
 | Qwen3.5-2B | BF16 | long | 410 | 512 | 122 | 3361 | 122 | 100.7 | 4.67 | OK |
-| Qwen3.5-9B | 8-bit | * | — | — | — | — | — | — | — | CONVERSION_FAILED: MLX 8-bit format incompatible with HF→CoreML |
+| Qwen3.5-9B | 8-bit* | short | 6 | 64 | 319 | 19 | 319 | 50.0 | 10.12 | OK |
+| Qwen3.5-9B | 8-bit* | medium | 133 | 256 | 671 | 198 | 672 | 49.7 | 10.13 | OK |
+| Qwen3.5-9B | 8-bit* | long | 410 | 512 | 1238 | 331 | 1265 | 47.6 | 10.14 | OK |
 
 > CoreML conversion requires original FP16/BF16/FP32 HuggingFace weights.
 > MLX 8-bit quantized models store weights in incompatible format.
-> The 0.8B (FP16) and 2B-bf16 models can be converted; 2B-8bit and 9B-8bit cannot.
+> The 0.8B (FP16) and 2B-bf16 models can be converted directly; 2B-8bit cannot.
+> *9B-8bit: CoreML prefill converted from original FP16 HF weights; MLX decode uses 8-bit quantized weights.
+> This mixed-precision approach introduces ~11-16% decode throughput degradation vs baseline.
 
 ## TTFT Comparison: Baseline vs Hybrid (0.8B FP16)
 
@@ -65,6 +69,18 @@
 | long | 410 | 123ms | 122ms | 0.99× (equal) |
 
 > **Zero dispatch overhead**: Unlike 0.8B, the 2B model shows no CoreML dispatch penalty at any prompt length.
+
+## TTFT Comparison: Baseline vs Hybrid (9B 8-bit)
+
+| Prompt | Tokens | Baseline TTFT | Hybrid TTFT | Ratio (hybrid/base) |
+|--------|--------|--------------|-------------|---------------------|
+| short | 6 | 39ms | 319ms | 8.2× slower |
+| medium | 133 | 265ms | 672ms | 2.5× slower |
+| long | 410 | 625ms | 1265ms | 2.0× slower |
+
+> **No crossover**: Unlike 0.8B and 2B, the 9B hybrid is always slower than GPU baseline.
+> 4-chunk CoreML dispatch overhead + mixed-precision (FP16 CoreML → 8-bit MLX) cache bridge
+> causes ~11-16% decode degradation (47.6-50.0 vs 56.1-56.5 tok/s).
 
 ## Key Observations
 

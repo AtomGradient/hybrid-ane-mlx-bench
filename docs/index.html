@@ -955,6 +955,88 @@
     </p>
 </section>
 
+<!-- ═══════════════════ 9B HYBRID ═══════════════════ -->
+<section id="hybrid-9b">
+    <h2><span class="e">Qwen3.5-9B 8-bit — Hybrid CoreML + MLX</span><span class="z">Qwen3.5-9B 8-bit — 混合 CoreML + MLX</span></h2>
+    <p class="section-sub e">
+        CoreML prefill (FP16 HF weights, 4 chunks) → MLX decode (8-bit quantized weights) · Mixed-precision hybrid
+    </p>
+    <p class="section-sub z">
+        CoreML 预填充（FP16 HF 权重，4 块）→ MLX 解码（8-bit 量化权重）· 混合精度混合推理
+    </p>
+
+    <h3><span class="e">9B: Hybrid ANE Results</span><span class="z">9B：混合 ANE 结果</span></h3>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th><span class="e">Prompt</span><span class="z">提示</span></th>
+                    <th><span class="e">Tokens</span><span class="z">Token 数</span></th>
+                    <th>seq_len</th>
+                    <th><span class="e">TTFT (ms)</span></th>
+                    <th><span class="e">Decode (tok/s)</span><span class="z">解码速度</span></th>
+                    <th><span class="e">Peak Mem</span><span class="z">峰值内存</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="e">short</span><span class="z">短</span></td>
+                    <td class="mono">6</td><td class="mono">64</td>
+                    <td class="mono slow">319</td><td class="mono ok">50.0</td><td class="mono">10.12 GB</td>
+                </tr>
+                <tr>
+                    <td><span class="e">medium</span><span class="z">中</span></td>
+                    <td class="mono">133</td><td class="mono">256</td>
+                    <td class="mono slow">672</td><td class="mono ok">49.7</td><td class="mono">10.13 GB</td>
+                </tr>
+                <tr>
+                    <td><span class="e">long</span><span class="z">长</span></td>
+                    <td class="mono">410</td><td class="mono">512</td>
+                    <td class="mono slow">1,265</td><td class="mono ok">47.6</td><td class="mono">10.14 GB</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3><span class="e">9B: Hybrid vs Baseline TTFT Comparison</span><span class="z">9B：混合推理 vs 基准 TTFT 对比</span></h3>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th><span class="e">Prompt</span><span class="z">提示</span></th>
+                    <th><span class="e">Tokens</span><span class="z">Token 数</span></th>
+                    <th><span class="e">Baseline GPU</span><span class="z">基准 GPU</span></th>
+                    <th><span class="e">Hybrid ANE</span><span class="z">混合 ANE</span></th>
+                    <th><span class="e">Ratio</span><span class="z">比值</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="e">short</span><span class="z">短</span></td><td class="mono">6</td>
+                    <td class="mono good">39</td><td class="mono slow">319</td>
+                    <td class="mono slow">8.2× <span class="e">slower</span><span class="z">更慢</span></td>
+                </tr>
+                <tr>
+                    <td><span class="e">medium</span><span class="z">中</span></td><td class="mono">133</td>
+                    <td class="mono good">265</td><td class="mono slow">672</td>
+                    <td class="mono slow">2.5× <span class="e">slower</span><span class="z">更慢</span></td>
+                </tr>
+                <tr>
+                    <td><span class="e">long</span><span class="z">长</span></td><td class="mono">410</td>
+                    <td class="mono good">625</td><td class="mono slow">1,265</td>
+                    <td class="mono slow">2.0× <span class="e">slower</span><span class="z">更慢</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;" class="e">
+        Unlike 0.8B and 2B, the 9B hybrid approach shows <strong>no crossover point</strong> — it is always slower than GPU baseline. The 4-chunk CoreML dispatch (vs 1–2 chunks for smaller models) multiplies IPC overhead. Additionally, the mixed-precision cache bridge (FP16 CoreML → 8-bit MLX) causes 11–16% decode throughput degradation (47.6–50.0 vs baseline 56.1–56.5 tok/s).
+    </p>
+    <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;" class="z">
+        与 0.8B 和 2B 不同，9B 混合推理<strong>没有交叉点</strong> — 始终慢于 GPU 基准。4 块 CoreML 调度（小模型仅 1–2 块）使 IPC 开销倍增。此外，混合精度缓存桥接（FP16 CoreML → 8-bit MLX）导致解码吞吐量下降 11–16%（47.6–50.0 vs 基准 56.1–56.5 tok/s）。
+    </p>
+</section>
+
 <!-- ═══════════════════ POWER EFFICIENCY ═══════════════════ -->
 <section id="power">
     <h2><span class="e">Power Efficiency</span><span class="z">功耗分析</span></h2>
