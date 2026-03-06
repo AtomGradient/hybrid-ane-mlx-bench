@@ -1,10 +1,10 @@
-\documentclass[10pt,twocolumn]{article}
+\documentclass[11pt]{article}
 
 % ── Packages ──────────────────────────────────────────────────────────────────
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{lmodern}
-\usepackage[margin=1in,columnsep=0.25in]{geometry}
+\usepackage[margin=1in]{geometry}
 \usepackage{microtype}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
@@ -148,14 +148,13 @@ transferring prefill state from CoreML to MLX.
 
 \begin{table}[h]
 \centering
-\footnotesize
-\begin{tabular}{@{}p{2.1cm}p{2.2cm}p{2.2cm}@{}}
+\begin{tabular}{@{}lll@{}}
 \toprule
 Unit & Strengths & Weaknesses \\
 \midrule
-GPU (MLX/Metal) & Dynamic shapes, lazy eval & Higher per-op overhead \\
-ANE (CoreML) & High TOPS, energy eff. & Fixed shapes, fixed seq \\
-ANE (private API) & Low framework overhead & Sequential dispatch \\
+GPU (MLX/Metal) & Dynamic shapes, lazy evaluation & Higher per-op dispatch overhead \\
+ANE (CoreML) & High peak TOPS, energy efficient & Fixed input shapes and seq\_len \\
+ANE (private API) & Low framework overhead & Sequential dispatch (1 token/call) \\
 \bottomrule
 \end{tabular}
 \caption{Apple Silicon compute units and their inference trade-offs.}
@@ -610,8 +609,7 @@ with TOPS and CoreML dispatch overhead remains roughly constant
 
 \begin{table}[h]
 \centering
-\footnotesize
-\resizebox{\columnwidth}{!}{%
+\small
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
 Chip & GPU & Prefill (tok/s) & Crossover & Note \\
@@ -621,7 +619,7 @@ M1 Max   & 32c & $\sim$2{,}100 & $\sim$200 tok & est. \\
 M1       &  8c & $\sim$500    & $\sim$50 tok  & est. \\
 A17 Pro  &  6c & $\sim$400    & $\sim$40 tok  & est. \\
 \bottomrule
-\end{tabular}}
+\end{tabular}
 \caption{Estimated CoreML hybrid crossover point (prompt length above
   which ANE prefill outperforms GPU prefill) across Apple Silicon.
   GPU throughput linearly extrapolated from M2 Ultra; actual values
@@ -668,8 +666,7 @@ Table~\ref{tab:power} reports averaged readings.
 
 \begin{table}[h]
 \centering
-\footnotesize
-\resizebox{\columnwidth}{!}{%
+\small
 \begin{tabular}{@{}lrrr@{}}
 \toprule
 Phase & GPU & ANE & CPU \\
@@ -680,7 +677,7 @@ ANE-LM prefill                   &  0.22\,W & 1.58\,W & 3.77\,W \\
 ANE-LM Hybrid decode             & 12.37\,W & 0.00\,W & 5.85\,W \\
 ANE-LM pure                      &  0.16\,W & 1.42\,W & 5.47\,W \\
 \bottomrule
-\end{tabular}}
+\end{tabular}
 \caption{Average power per inference phase, M2 Ultra, Qwen3.5-0.8B FP16.
   \texttt{powermetrics} at 100\,ms intervals.
   $^\dagger$MLX prefill looped for 15\,s (332 iters) for steady-state.}
@@ -712,13 +709,13 @@ This represents the hardware convergence our software pipeline approximates:
 
 \begin{table}[h]
 \centering
-\footnotesize
-\begin{tabular}{@{}p{1.2cm}p{3.2cm}p{1.5cm}@{}}
+\small
+\begin{tabular}{@{}lll@{}}
 \toprule
-Gen. & Prefill path & ANE access \\
+Generation & Prefill path & ANE access \\
 \midrule
 M1--M4 & CoreML $\to$ ANE (IPC daemon) & Indirect \\
-M5+ & MLX $\to$ Metal Neural Acc. & Direct \\
+M5+ & MLX $\to$ Metal Neural Accelerator & Direct \\
 \bottomrule
 \end{tabular}
 \caption{Evolution of ANE access across Apple Silicon generations.}
