@@ -41,7 +41,7 @@
 | Qwen3.5-2B | 8-bit | * | — | — | — | — | — | — | — | CONVERSION_FAILED: MLX 8-bit format incompatible with HF→CoreML |
 | Qwen3.5-2B | BF16 | short | 6 | 64 | 22 | 273 | 22 | 104.2 | 4.16 | OK |
 | Qwen3.5-2B | BF16 | medium | 133 | 256 | 54 | 2477 | 54 | 102.3 | 4.37 | OK |
-| Qwen3.5-2B | BF16 | long | 410 | 512 | — | — | — | — | — | PENDING (seq512 converting) |
+| Qwen3.5-2B | BF16 | long | 410 | 512 | 122 | 3361 | 122 | 100.7 | 4.67 | OK |
 | Qwen3.5-9B | 8-bit | * | — | — | — | — | — | — | — | CONVERSION_FAILED: MLX 8-bit format incompatible with HF→CoreML |
 
 > CoreML conversion requires original FP16/BF16/FP32 HuggingFace weights.
@@ -55,6 +55,16 @@
 | short | 6 | 56ms | 274ms | 4.9× slower |
 | medium | 133 | 69ms | 411ms | 6.0× slower |
 | long | 410 | 96ms | 100ms | 1.04× (≈ equal) |
+
+## TTFT Comparison: Baseline vs Hybrid (2B BF16)
+
+| Prompt | Tokens | Baseline TTFT | Hybrid TTFT | Ratio (hybrid/base) |
+|--------|--------|--------------|-------------|---------------------|
+| short | 6 | 22ms | 22ms | 1.0× (equal) |
+| medium | 133 | 54ms | 54ms | 1.0× (equal) |
+| long | 410 | 123ms | 122ms | 0.99× (equal) |
+
+> **Zero dispatch overhead**: Unlike 0.8B, the 2B model shows no CoreML dispatch penalty at any prompt length.
 
 ## Key Observations
 

@@ -907,6 +907,11 @@
                     <td class="mono">133</td><td class="mono">256</td>
                     <td class="mono good">54</td><td class="mono good">102.3</td><td class="mono">4.37</td>
                 </tr>
+                <tr>
+                    <td><span class="e">long</span><span class="z">长</span></td>
+                    <td class="mono">410</td><td class="mono">512</td>
+                    <td class="mono good">122</td><td class="mono good">100.7</td><td class="mono">4.67</td>
+                </tr>
             </tbody>
         </table>
     </div>
@@ -934,11 +939,16 @@
                     <td class="mono good">54</td><td class="mono good">54</td>
                     <td class="mono good">1.0× <span class="e">(equal)</span><span class="z">（持平）</span></td>
                 </tr>
+                <tr>
+                    <td><span class="e">long</span><span class="z">长</span></td><td class="mono">410</td>
+                    <td class="mono good">123</td><td class="mono good">122</td>
+                    <td class="mono good">0.99× <span class="e">(equal)</span><span class="z">（持平）</span></td>
+                </tr>
             </tbody>
         </table>
     </div>
     <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;" class="e">
-        Unlike 0.8B where CoreML dispatch overhead added 200–340 ms, the 2B BF16 model shows <strong>zero overhead</strong> — Hybrid TTFT exactly matches GPU baseline at all prompt lengths. The larger hidden dimension (1536 vs 1024) amortizes CoreML dispatch cost even at seq64. Decode throughput (102–104 tok/s) slightly exceeds baseline (100–101 tok/s).
+        Unlike 0.8B where CoreML dispatch overhead added 200–340 ms, the 2B BF16 model shows <strong>zero overhead</strong> — Hybrid TTFT exactly matches GPU baseline at all three prompt lengths (short/medium/long). The larger hidden dimension (1536 vs 1024) amortizes CoreML dispatch cost even at seq64. Decode throughput (100–104 tok/s) matches baseline (100–101 tok/s).
     </p>
     <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;" class="z">
         与 0.8B 中 CoreML 调度增加 200–340 ms 的开销不同，2B BF16 模型 <strong>零开销</strong> — 混合 TTFT 在所有 prompt 长度上精确匹配 GPU 基准。更大的隐层维度（1536 vs 1024）使 CoreML 调度成本即使在 seq64 也能被摊销。解码吞吐量（102–104 tok/s）略超基准（100–101 tok/s）。

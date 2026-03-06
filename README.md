@@ -67,8 +67,9 @@ the MLX GPU baseline. Results are combined to give end-to-end TTFT and decode me
 |--------|--------|-------------|-----------|-------|
 | short | 6 | 22 ms | 22 ms | 1.0× (equal) |
 | medium | 133 | 54 ms | 54 ms | 1.0× (equal) |
+| long | 410 | 123 ms | 122 ms | 0.99× (equal) |
 
-Unlike 0.8B, the 2B BF16 model shows **zero dispatch overhead** — Hybrid TTFT matches GPU baseline at all tested prompt lengths. Decode: 102–104 tok/s (slightly exceeds baseline 100–101 tok/s).
+Unlike 0.8B, the 2B BF16 model shows **zero dispatch overhead** — Hybrid TTFT matches GPU baseline at all three prompt lengths. Decode: 100–104 tok/s (matches baseline 100–101 tok/s).
 
 ## Repository Structure
 

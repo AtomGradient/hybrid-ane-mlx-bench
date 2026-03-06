@@ -422,12 +422,13 @@ Prompt & Tokens & seq\_len & TTFT & Decode \\
 \midrule
 short & 6 & 64 & 22 & 104.2 \\
 medium & 133 & 256 & 54 & 102.3 \\
+long & 410 & 512 & 122 & 100.7 \\
 \bottomrule
 \end{tabular}
 \caption{Hybrid CoreML+MLX results for Qwen3.5-2B BF16 (M2 Ultra).
-  TTFT matches the MLX GPU baseline (22\,ms / 54\,ms), while decode
-  throughput slightly exceeds baseline (101--104 vs.\ 100--101\,tok/s).
-  Long prompt (seq512) conversion pending.}
+  TTFT matches the MLX GPU baseline at all prompt lengths
+  (22\,ms / 54\,ms / 122\,ms vs.\ baseline 22\,ms / 54\,ms / 123\,ms),
+  while decode throughput matches baseline (100--104 vs.\ 100--101\,tok/s).}
 \label{tab:hybrid_2b}
 \end{table}
 

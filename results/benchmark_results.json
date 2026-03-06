@@ -346,5 +346,20 @@
     "decode_tokens_per_sec": 102.3,
     "peak_memory_gb": 4.37,
     "total_time_ms": 2009.86
+  },
+  {
+    "model": "Qwen3.5-2B-bf16",
+    "quant": "BF16",
+    "backend": "hybrid_ane",
+    "prompt_length": "long",
+    "status": "OK",
+    "prompt_tokens": 410,
+    "generated_tokens": 200,
+    "prefill_time_ms": 121.54,
+    "prefill_tokens_per_sec": 3373.4,
+    "ttft_ms": 121.81,
+    "decode_tokens_per_sec": 100.7,
+    "peak_memory_gb": 4.67,
+    "total_time_ms": 2108.6
   }
 ]
