@@ -562,6 +562,40 @@ Factors that shift the crossover point:
     This is an important practical constraint for mobile deployment.
 \end{itemize}
 
+\subsection{Scaling Law: Larger Models Amortize Dispatch Overhead}
+\label{sec:scaling}
+
+Our 0.8B~vs.~2B comparison reveals a clear scaling trend:
+
+\textbf{Model size $\uparrow$ $\Rightarrow$ dispatch overhead $\downarrow$}:
+0.8B (hidden\_size=1024) incurs $\approx$250\,ms CoreML dispatch overhead at seq64;
+2B (hidden\_size=1536) incurs \emph{zero} overhead --- TTFT exactly matches GPU baseline.
+The cause is straightforward: larger hidden dimensions increase the
+compute-per-dispatch ratio, making the fixed IPC/dispatch cost negligible.
+
+\textbf{Prompt length $\uparrow$ $\Rightarrow$ prefill throughput $\uparrow$}:
+This holds for both models.
+0.8B achieves 4{,}128\,tok/s at seq512 (410 tokens) but only 22\,tok/s at
+seq64 (6 tokens), because the ANE processes a fixed-size tensor and
+longer real-token sequences waste less padding.
+
+\textbf{Practical constraints of scaling up}:
+\begin{itemize}[topsep=2pt,itemsep=1pt]
+  \item \textbf{Conversion time}: grows super-linearly.
+    2B seq512 requires $\approx$120\,min (vs.\ $\approx$22\,min for 0.8B
+    seq512) on M2 Ultra.
+  \item \textbf{First-load ANE compilation}: 2B seq256 takes 878\,s
+    ($\approx$15\,min) on first load; cached thereafter.
+  \item \textbf{Storage}: hybrid deployment stores both MLX weights and
+    CoreML packages (e.g.\ 4.0\,GB + 3$\times$2.3\,GB = 10.9\,GB for 2B).
+\end{itemize}
+
+\textbf{Conclusion}: hybrid CoreML+MLX inference is most advantageous for
+\emph{larger models with longer prompts}.
+On mobile Apple Silicon (A-series, 6--8 GPU cores), the crossover point
+falls even further, making ANE-assisted prefill beneficial for nearly all
+conversational prompts (Table~\ref{tab:crossover}).
+
 \subsection{Extrapolation to Other Apple Silicon Generations}
 \label{sec:extrapolation}
 

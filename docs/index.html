@@ -1121,6 +1121,24 @@
                 ANE 预填充实测：GPU 0.22 W + ANE 1.58 W = 总计 1.8 W，对比 GPU 预填充 62.05 W——降低 282×。每次请求节省 60.25 W。移动端（TDP ~3–8 W）GPU 预填充会立即触发散热降频；ANE 预填充完全在热功耗预算以内。
             </div>
         </div>
+        <div class="finding-card hybrid">
+            <div class="finding-icon">📈</div>
+            <div class="finding-title"><span class="e">Larger Models + Longer Prompts = Best Hybrid</span><span class="z">越大模型 + 越长 Prompt = 混合推理越有利</span></div>
+            <div class="finding-text e">
+                <strong>Model size ↑ → dispatch overhead ↓</strong>: 0.8B (hidden=1024) has 250 ms overhead at seq64;
+                2B (hidden=1536) has zero overhead. Larger hidden dims increase compute-per-dispatch, amortizing fixed IPC cost.<br>
+                <strong>Prompt length ↑ → prefill throughput ↑</strong>: 0.8B goes from 22 tok/s (seq64) to 4,128 tok/s (seq512). Less padding waste = higher ANE utilization.<br>
+                <strong>Tradeoffs</strong>: conversion time grows super-linearly (2B seq512: ~120 min vs 0.8B: ~22 min);
+                first-load ANE compilation takes 15+ min for 2B; storage doubles (MLX weights + CoreML packages).<br>
+                <strong>On mobile (A-series, 6–8 GPU cores)</strong>, crossover falls below 64 tokens — nearly all prompts benefit from ANE prefill.
+            </div>
+            <div class="finding-text z">
+                <strong>模型越大 → 调度开销越小</strong>：0.8B（hidden=1024）在 seq64 有 250 ms 开销；2B（hidden=1536）零开销。更大的隐层维度增加每次调度的计算量，摊销固定 IPC 成本。<br>
+                <strong>Prompt 越长 → 预填充吞吐越高</strong>：0.8B 从 22 tok/s（seq64）到 4,128 tok/s（seq512）。更少的填充浪费 = 更高的 ANE 利用率。<br>
+                <strong>反面约束</strong>：转换时间超线性增长（2B seq512: ~120 min vs 0.8B: ~22 min）；首次 ANE 编译 2B 需 15+ min；存储翻倍（MLX 权重 + CoreML 模型）。<br>
+                <strong>在移动设备（A 系列，6–8 GPU 核心）</strong>上，交叉阈值降至 64 token 以下——几乎所有 prompt 都受益于 ANE 预填充。
+            </div>
+        </div>
         <div class="finding-card ane">
             <div class="finding-icon">🔮</div>
             <div class="finding-title"><span class="e">M5: Native ANE via Metal 4</span><span class="z">M5：通过 Metal 4 原生访问 ANE</span></div>
