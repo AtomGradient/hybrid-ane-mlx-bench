@@ -9,14 +9,15 @@
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
-            --bg-primary: #0a0e17;
-            --bg-secondary: #111827;
-            --bg-card: #1a2332;
-            --bg-card-hover: #1f2b3d;
-            --border-color: #2a3548;
-            --text-primary: #e8ecf1;
-            --text-secondary: #9ca3b0;
-            --text-muted: #6b7280;
+            --bg-primary: #191714;
+            --bg-secondary: #1e1b17;
+            --bg-card: #252220;
+            --bg-card-hover: #2c2926;
+            --border-color: #3a3530;
+            --text-primary: #e8e4df;
+            --text-secondary: #a39e96;
+            --text-muted: #6b6560;
+            --accent: #d97757;
             --gpu-green: #50C878;
             --gpu-green-dim: rgba(80, 200, 120, 0.15);
             --hybrid-orange: #E8A838;
@@ -51,12 +52,12 @@
             transition: all 0.15s; font-family: 'JetBrains Mono', monospace;
             line-height: 1.6;
         }
-        .lang-btn.active { background: var(--bg-secondary); color: var(--text-primary); }
+        .lang-btn.active { background: rgba(217, 119, 87, 0.15); color: var(--accent); }
 
         /* ── Nav ── */
         nav {
             position: fixed; top: 0; width: 100%; z-index: 100;
-            background: rgba(10,14,23,0.92); backdrop-filter: blur(12px);
+            background: rgba(25,23,20,0.92); backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--border-color);
             padding: 0 2rem;
             display: flex; align-items: center; justify-content: space-between;
@@ -65,7 +66,7 @@
         .nav-brand { font-weight: 700; font-size: 1rem; color: var(--text-primary); text-decoration: none; flex-shrink: 0; }
         .nav-links { display: flex; gap: 2rem; list-style: none; }
         .nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 0.875rem; transition: color 0.2s; }
-        .nav-links a:hover { color: var(--text-primary); }
+        .nav-links a:hover { color: var(--accent); }
         .nav-right { display: flex; align-items: center; gap: 1.5rem; }
 
         /* ── Hero ── */
@@ -76,9 +77,9 @@
         .hero-badge {
             display: inline-block;
             padding: 0.35rem 1rem;
-            border: 1px solid var(--border-color);
+            border: 1px solid rgba(217, 119, 87, 0.35);
             border-radius: 999px;
-            font-size: 0.8rem; color: var(--text-muted);
+            font-size: 0.8rem; color: var(--accent);
             margin-bottom: 1.5rem;
             font-family: 'JetBrains Mono', monospace;
         }
@@ -120,7 +121,7 @@
 
         /* ── Sections ── */
         section { max-width: 960px; margin: 0 auto; padding: 4rem 2rem; }
-        h2 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
+        h2 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-primary); }
         .section-sub { color: var(--text-secondary); margin-bottom: 2.5rem; }
         h3 { font-size: 1.1rem; font-weight: 600; margin: 2rem 0 0.75rem; }
 
@@ -133,7 +134,7 @@
         th {
             background: var(--bg-secondary); padding: 0.75rem 1rem;
             text-align: left; font-weight: 600; color: var(--text-secondary);
-            border-bottom: 2px solid var(--border-color);
+            border-bottom: 2px solid rgba(217, 119, 87, 0.25);
             font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;
         }
         td {
@@ -196,7 +197,7 @@
             color: var(--text-muted); font-size: 0.8rem;
         }
         footer a { color: var(--text-secondary); text-decoration: none; }
-        footer a:hover { color: var(--text-primary); }
+        footer a:hover { color: var(--accent); }
 
         /* ── Flow Architecture ── */
         .flow-columns {
@@ -274,7 +275,7 @@
         .comparison-card-header {
             padding: 14px 20px; border-bottom: 1px solid var(--border-color);
             font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
-            letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted);
+            letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent);
         }
 
         /* ── Bottleneck Cards ── */
@@ -1129,6 +1130,102 @@
     </p>
     <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;" class="z">
         在 6–8 GPU 核心的设备（大多数 iPhone）上，ANE 预填充对几乎所有实际 prompt 长度都更快，同时功耗低数个数量级。
+    </p>
+
+    <h3><span class="e">Full Inference Power Consumption — Baseline MLX (GPU Only)</span><span class="z">完整推理功耗 — 基准 MLX（纯 GPU）</span></h3>
+    <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:1rem;" class="e">
+        Measured via <code>powermetrics</code>/<code>asitop</code> during full inference (prefill + decode), 4 runs each. All models on M2 Ultra.
+    </p>
+    <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:1rem;" class="z">
+        使用 <code>powermetrics</code>/<code>asitop</code> 在完整推理（预填充 + 解码）期间测量，每项 4 次运行。全部模型在 M2 Ultra 上。
+    </p>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th><span class="e">Model</span><span class="z">模型</span></th>
+                    <th><span class="e">Prompt</span><span class="z">提示词</span></th>
+                    <th>CPU (W)</th>
+                    <th>GPU (W)</th>
+                    <th>ANE (W)</th>
+                    <th><span class="e">Total (W)</span><span class="z">总计 (W)</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>0.8B FP16</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono">9.5</td><td class="mono">6.7</td><td class="mono">0</td><td class="mono">16.2</td></tr>
+                <tr><td>0.8B FP16</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono">7.0</td><td class="mono">18.0</td><td class="mono">0</td><td class="mono">25.0</td></tr>
+                <tr><td>0.8B FP16</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono">6.7</td><td class="mono ok">19.0</td><td class="mono">0</td><td class="mono ok">25.7</td></tr>
+                <tr><td>2B 8-bit</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono">9.0</td><td class="mono">21.2</td><td class="mono">0</td><td class="mono">30.2</td></tr>
+                <tr><td>2B 8-bit</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono">8.4</td><td class="mono">25.8</td><td class="mono">0</td><td class="mono">34.2</td></tr>
+                <tr><td>2B 8-bit</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono">8.7</td><td class="mono slow">30.9</td><td class="mono">0</td><td class="mono slow">39.6</td></tr>
+                <tr><td>2B BF16</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono">8.8</td><td class="mono">19.3</td><td class="mono">0</td><td class="mono">28.1</td></tr>
+                <tr><td>2B BF16</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono">8.5</td><td class="mono">21.3</td><td class="mono">0</td><td class="mono">29.8</td></tr>
+                <tr><td>2B BF16</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono">7.9</td><td class="mono">23.7</td><td class="mono">0</td><td class="mono">31.6</td></tr>
+                <tr><td>9B 8-bit</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono">6.6</td><td class="mono ok">36.5</td><td class="mono">0</td><td class="mono ok">43.1</td></tr>
+                <tr><td>9B 8-bit</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono">6.2</td><td class="mono slow">41.6</td><td class="mono">0</td><td class="mono slow">47.8</td></tr>
+                <tr><td>9B 8-bit</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono">6.3</td><td class="mono slow">46.9</td><td class="mono">0</td><td class="mono slow">53.2</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3><span class="e">Full Inference Power Consumption — Hybrid ANE (CoreML Prefill + MLX Decode)</span><span class="z">完整推理功耗 — 混合 ANE（CoreML 预填充 + MLX 解码）</span></h3>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th><span class="e">Model</span><span class="z">模型</span></th>
+                    <th><span class="e">Prompt</span><span class="z">提示词</span></th>
+                    <th>CPU (W)</th>
+                    <th>GPU (W)</th>
+                    <th>ANE (W)</th>
+                    <th><span class="e">Total (W)</span><span class="z">总计 (W)</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>0.8B FP16</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono">7.4</td><td class="mono">14.6</td><td class="mono good">0.024</td><td class="mono">22.0</td></tr>
+                <tr><td>0.8B FP16</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono">10.5</td><td class="mono good">5.2</td><td class="mono good">0.002</td><td class="mono good">15.7</td></tr>
+                <tr><td>0.8B FP16</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono">10.4</td><td class="mono good">6.2</td><td class="mono good">0.017</td><td class="mono good">16.6</td></tr>
+                <tr><td>9B 8-bit</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono">8.1</td><td class="mono">31.3</td><td class="mono good">0</td><td class="mono">39.4</td></tr>
+                <tr><td>9B 8-bit</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono">9.5</td><td class="mono good">21.5</td><td class="mono good">0</td><td class="mono good">31.0</td></tr>
+                <tr><td>9B 8-bit</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono">11.1</td><td class="mono good">11.4</td><td class="mono good">0</td><td class="mono good">22.5</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Key Finding: ANE = 0W -->
+    <div class="finding-card" style="border-top-color: var(--accent); margin: 2rem 0;">
+        <div class="finding-icon" style="font-size:1.25rem;">&#x26A0;&#xFE0F;</div>
+        <div class="finding-title" style="color: var(--accent);">
+            <span class="e">Key Finding: ANE Power is 0 W</span>
+            <span class="z">关键发现：ANE 功耗为 0 W</span>
+        </div>
+        <div class="finding-text e">
+            <strong>ANE power is essentially 0 W across all hybrid runs</strong> — despite using <code>compute_units=ALL</code>,
+            CoreML routes computation through GPU, not ANE. The "ANE prefill" is a misnomer: CoreML is performing
+            GPU-based prefill with optimized kernels.<br><br>
+            The hybrid pipeline's power savings come from <strong>CoreML's more efficient GPU kernel utilization</strong>,
+            not from ANE offloading:<br>
+            &bull; <strong>0.8B long prompt:</strong> 16.6 W (hybrid) vs 25.7 W (baseline) — <strong style="color:var(--gpu-green)">35% reduction</strong><br>
+            &bull; <strong>9B long prompt:</strong> 22.5 W (hybrid) vs 53.2 W (baseline) — <strong style="color:var(--gpu-green)">58% reduction</strong><br>
+            &bull; ANE power never exceeds 0.024 W in any hybrid configuration
+        </div>
+        <div class="finding-text z">
+            <strong>所有混合推理运行中 ANE 功耗实质上为 0 W</strong> — 尽管使用了 <code>compute_units=ALL</code>，
+            CoreML 将计算路由到 GPU 而非 ANE。"ANE 预填充"是误称：CoreML 实际执行的是基于 GPU 的优化内核预填充。<br><br>
+            混合管线的功耗节省来自 <strong>CoreML 更高效的 GPU 内核利用</strong>，而非 ANE 卸载：<br>
+            &bull; <strong>0.8B 长 prompt：</strong>16.6 W（混合）vs 25.7 W（基准）— <strong style="color:var(--gpu-green)">降低 35%</strong><br>
+            &bull; <strong>9B 长 prompt：</strong>22.5 W（混合）vs 53.2 W（基准）— <strong style="color:var(--gpu-green)">降低 58%</strong><br>
+            &bull; 任何混合配置中 ANE 功耗均未超过 0.024 W
+        </div>
+    </div>
+
+    <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;" class="e">
+        This revises our earlier per-phase power data (measured via ANE-LM private API), which showed genuine ANE
+        utilization at 1.58 W. The private API dispatches directly to ANE hardware, whereas CoreML's
+        <code>compute_units=ALL</code> on macOS 26.3 appears to prefer GPU execution even when ANE is nominally available.
+    </p>
+    <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;" class="z">
+        这修正了我们早期的分阶段功耗数据（通过 ANE-LM 私有 API 测量），后者显示真正的 ANE 利用为 1.58 W。私有 API 直接调度到 ANE 硬件，而 CoreML 在 macOS 26.3 上的 <code>compute_units=ALL</code> 即使 ANE 名义上可用，也似乎更倾向于 GPU 执行。
     </p>
 </section>
 

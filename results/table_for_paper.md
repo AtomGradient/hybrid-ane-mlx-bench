@@ -131,3 +131,45 @@ The fundamental difference between CoreML (batched) and ANE-LM (sequential):
 - ANE-LM dispatches ONE token per call → TTFT = N × (dispatch + compute) ≈ N × 42ms
 - At seq512 (410 tokens), CoreML batching achieves 4,128 tok/s vs. ANE-LM's 24 tok/s (172× faster for prefill)
 - For decode (1 token/step), both approaches are sequential; GPU wins due to higher throughput
+
+## Power Consumption (M2 Ultra, powermetrics via asitop)
+
+All measurements during inference (prefill + decode phases, 4 runs each).
+
+### Baseline MLX (GPU Only)
+
+| Model | Quant | Prompt | CPU (W) | GPU (W) | ANE (W) | Total (W) |
+|-------|-------|--------|---------|---------|---------|-----------|
+| Qwen3.5-0.8B | FP16 | short | 9.5 | 6.7 | 0 | 16.2 |
+| Qwen3.5-0.8B | FP16 | medium | 7.0 | 18.0 | 0 | 25.0 |
+| Qwen3.5-0.8B | FP16 | long | 6.7 | 19.0 | 0 | 25.7 |
+| Qwen3.5-2B | 8-bit | short | 9.0 | 21.2 | 0 | 30.2 |
+| Qwen3.5-2B | 8-bit | medium | 8.4 | 25.8 | 0 | 34.2 |
+| Qwen3.5-2B | 8-bit | long | 8.7 | 30.9 | 0 | 39.6 |
+| Qwen3.5-2B | BF16 | short | 8.8 | 19.3 | 0 | 28.1 |
+| Qwen3.5-2B | BF16 | medium | 8.5 | 21.3 | 0 | 29.8 |
+| Qwen3.5-2B | BF16 | long | 7.9 | 23.7 | 0 | 31.6 |
+| Qwen3.5-9B | 8-bit | short | 6.6 | 36.5 | 0 | 43.1 |
+| Qwen3.5-9B | 8-bit | medium | 6.2 | 41.6 | 0 | 47.8 |
+| Qwen3.5-9B | 8-bit | long | 6.3 | 46.9 | 0 | 53.2 |
+
+### Hybrid ANE (CoreML Prefill + MLX Decode)
+
+| Model | Quant | Prompt | CPU (W) | GPU (W) | ANE (W) | Total (W) |
+|-------|-------|--------|---------|---------|---------|-----------|
+| Qwen3.5-0.8B | FP16 | short | 7.4 | 14.6 | 0.024 | 22.0 |
+| Qwen3.5-0.8B | FP16 | medium | 10.5 | 5.2 | 0.002 | 15.7 |
+| Qwen3.5-0.8B | FP16 | long | 10.4 | 6.2 | 0.017 | 16.6 |
+| Qwen3.5-9B | 8-bit | short | 8.1 | 31.3 | 0 | 39.4 |
+| Qwen3.5-9B | 8-bit | medium | 9.5 | 21.5 | 0 | 31.0 |
+| Qwen3.5-9B | 8-bit | long | 11.1 | 11.4 | 0 | 22.5 |
+
+### Key Finding: ANE Power is Essentially 0 W
+
+**ANE power is essentially 0 W across all hybrid runs** — despite using `compute_units=ALL`, CoreML routes computation through GPU, not ANE. The "ANE prefill" is a misnomer — CoreML is doing GPU-based prefill. This means the hybrid pipeline's benefit is purely from using CoreML's optimized GPU kernels for batched prefill, not from ANE offloading.
+
+Key observations:
+- 0.8B hybrid with long prompt: total power 16.6 W (hybrid) vs 25.7 W (baseline) — **35% reduction** despite both using GPU
+- 9B hybrid with long prompt: total power 22.5 W (hybrid) vs 53.2 W (baseline) — **58% reduction**
+- The power savings come from CoreML's more efficient GPU kernel utilization, not ANE offloading
+- ANE power never exceeds 0.024 W in any hybrid configuration

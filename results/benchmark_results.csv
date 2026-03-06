@@ -31,3 +31,17 @@ Qwen3.5-0.8B,FP16,baseline_mlx,medium,133,200,72.59,1832.3,72.89,71.2,3.58,2883.
 Qwen3.5-0.8B,FP16,baseline_mlx,long,410,200,100.83,4066.3,101.13,70.7,4.18,2931.4,OK
 Qwen3.5-0.8B,FP16,hybrid_ane,short,6,200,268.92,22.3,269.7,68.7,3.42,3179.15,OK
 Qwen3.5-0.8B,FP16,hybrid_ane,medium,133,200,409.62,324.7,409.93,68.3,3.43,3336.95,OK
+Qwen3.5-0.8B,FP16,hybrid_ane,long,410,200,891.56,459.9,891.87,67.0,3.43,3875.49,OK
+Qwen3.5-2B-8bit,8-bit,baseline_mlx,short,6,200,14.0,428.7,14.26,143.3,2.51,1409.83,OK
+Qwen3.5-2B-8bit,8-bit,baseline_mlx,medium,133,200,72.13,1844.0,72.41,141.4,2.74,1486.37,OK
+Qwen3.5-2B-8bit,8-bit,baseline_mlx,long,410,200,161.59,2537.3,161.91,141.4,3.23,1575.87,OK
+Qwen3.5-2B-bf16,BF16,baseline_mlx,short,6,200,22.19,270.4,22.51,101.9,4.16,1984.9,OK
+Qwen3.5-2B-bf16,BF16,baseline_mlx,medium,133,200,53.46,2487.8,53.75,101.3,4.37,2028.48,OK
+Qwen3.5-2B-bf16,BF16,baseline_mlx,long,410,200,121.49,3374.8,121.87,100.3,4.67,2116.14,OK
+Qwen3.5-9B-8bit,8-bit,baseline_mlx,short,6,200,38.05,157.7,38.34,56.7,9.76,3566.72,OK
+Qwen3.5-9B-8bit,8-bit,baseline_mlx,medium,133,200,264.34,503.1,264.62,56.5,10.0,3807.83,OK
+Qwen3.5-9B-8bit,8-bit,baseline_mlx,long,410,200,624.35,656.7,624.66,56.2,10.43,4181.65,OK
+Qwen3.5-9B-8bit,8-bit,hybrid_ane,short,6,200,363.18,16.5,363.97,49.6,10.12,4392.95,OK
+Qwen3.5-9B-8bit,8-bit,hybrid_ane,medium,133,200,642.59,207.0,643.4,49.5,10.13,4702.46,OK
+Qwen3.5-9B-8bit,8-bit,hybrid_ane,long,410,200,1233.73,332.3,1247.91,47.6,10.14,5450.22,OK
+Qwen3.5-2B-bf16,BF16,hybrid_ane,short,6,200,161.26,37.2,161.63,34.6,7.04,5948.99,OK

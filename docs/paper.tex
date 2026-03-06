@@ -488,6 +488,111 @@ long & 422 & 17{,}831 & 23.7 & 22.8 \\
 \label{tab:ane_lm}
 \end{table}
 
+\subsection{Power Consumption}
+\label{sec:power_consumption}
+
+We measure per-component power draw (CPU, GPU, ANE) using
+\texttt{powermetrics} via \texttt{asitop} during full inference runs
+(prefill + decode phases, 4 runs each) on M2 Ultra.
+
+Table~\ref{tab:power_baseline} reports power consumption for the MLX GPU
+baseline across all model variants.
+GPU power scales with model size: 0.8B draws 6.7--19.0\,W, while 9B
+draws 36.5--46.9\,W.
+ANE power is 0\,W throughout, as expected for pure-GPU inference.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+Model & Prompt & CPU & GPU & ANE & Total \\
+ & & (W) & (W) & (W) & (W) \\
+\midrule
+\multirow{3}{*}{0.8B FP16}
+  & short  & 9.5  & 6.7  & 0 & 16.2 \\
+  & medium & 7.0  & 18.0 & 0 & 25.0 \\
+  & long   & 6.7  & 19.0 & 0 & 25.7 \\
+\midrule
+\multirow{3}{*}{2B 8-bit}
+  & short  & 9.0  & 21.2 & 0 & 30.2 \\
+  & medium & 8.4  & 25.8 & 0 & 34.2 \\
+  & long   & 8.7  & 30.9 & 0 & 39.6 \\
+\midrule
+\multirow{3}{*}{2B BF16}
+  & short  & 8.8  & 19.3 & 0 & 28.1 \\
+  & medium & 8.5  & 21.3 & 0 & 29.8 \\
+  & long   & 7.9  & 23.7 & 0 & 31.6 \\
+\midrule
+\multirow{3}{*}{9B 8-bit}
+  & short  & 6.6  & 36.5 & 0 & 43.1 \\
+  & medium & 6.2  & 41.6 & 0 & 47.8 \\
+  & long   & 6.3  & 46.9 & 0 & 53.2 \\
+\bottomrule
+\end{tabular}
+\caption{Baseline MLX (GPU only) power consumption, M2 Ultra.
+  Measured via \texttt{powermetrics}/\texttt{asitop} during full
+  inference (prefill + decode), 4 runs each. ANE power is 0\,W
+  throughout.}
+\label{tab:power_baseline}
+\end{table}
+
+Table~\ref{tab:power_hybrid} reports power consumption for the Hybrid
+CoreML+MLX pipeline.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+Model & Prompt & CPU & GPU & ANE & Total \\
+ & & (W) & (W) & (W) & (W) \\
+\midrule
+\multirow{3}{*}{0.8B FP16}
+  & short  & 7.4  & 14.6 & 0.024 & 22.0 \\
+  & medium & 10.5 & 5.2  & 0.002 & 15.7 \\
+  & long   & 10.4 & 6.2  & 0.017 & 16.6 \\
+\midrule
+\multirow{3}{*}{9B 8-bit}
+  & short  & 8.1  & 31.3 & 0     & 39.4 \\
+  & medium & 9.5  & 21.5 & 0     & 31.0 \\
+  & long   & 11.1 & 11.4 & 0     & 22.5 \\
+\bottomrule
+\end{tabular}
+\caption{Hybrid CoreML+MLX power consumption, M2 Ultra.
+  ANE power is essentially 0\,W across all configurations despite
+  using \texttt{compute\_units=ALL}, indicating CoreML routes
+  computation through GPU rather than ANE.}
+\label{tab:power_hybrid}
+\end{table}
+
+\textbf{Key finding: ANE power is essentially 0\,W.}
+Despite configuring CoreML with \texttt{compute\_units=ALL}, the ANE
+draws at most 0.024\,W across all hybrid runs.
+This indicates that CoreML routes the prefill computation through the
+GPU, not the ANE --- the ``ANE prefill'' is a misnomer.
+The hybrid pipeline's power savings therefore come from CoreML's
+optimized GPU kernels for batched matrix operations, not from ANE
+offloading.
+
+Comparing total power at the long prompt:
+\begin{itemize}[topsep=2pt,itemsep=1pt]
+  \item \textbf{0.8B}: hybrid 16.6\,W vs.\ baseline 25.7\,W
+    (\textbf{35\% reduction})
+  \item \textbf{9B}: hybrid 22.5\,W vs.\ baseline 53.2\,W
+    (\textbf{58\% reduction})
+\end{itemize}
+The larger power savings for 9B are consistent with the longer prefill
+phase (1{,}265\,ms vs.\ 100\,ms), during which CoreML's GPU kernels
+operate at significantly lower power than MLX's Metal compute pipeline.
+
+This finding revises our earlier per-phase power measurements
+(Table~\ref{tab:power}), which showed genuine ANE utilization (1.58\,W)
+during ANE-LM private API prefill.
+The private API dispatches directly to ANE hardware, whereas CoreML's
+\texttt{compute\_units=ALL} on macOS 26.3 appears to prefer GPU
+execution even when ANE is nominally available.
+
 % ══════════════════════════════════════════════════════════════════════════════
 \section{Discussion}
 \label{sec:discussion}
