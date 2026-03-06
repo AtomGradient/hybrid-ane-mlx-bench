@@ -1,0 +1,3 @@
+title: Hybrid ANE-MLX-Bench
+description: Disaggregated LLM Inference on Apple Silicon — CoreML ANE Prefill + MLX GPU Decode
+theme: null

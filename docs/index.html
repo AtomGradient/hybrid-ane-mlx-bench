@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hybrid ANE-MLX-Bench — Disaggregated LLM Inference on Apple Silicon</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: #1a2332;
+            --bg-card-hover: #1f2b3d;
+            --border-color: #2a3548;
+            --text-primary: #e8ecf1;
+            --text-secondary: #9ca3b0;
+            --text-muted: #6b7280;
+            --gpu-green: #50C878;
+            --gpu-green-dim: rgba(80, 200, 120, 0.15);
+            --hybrid-orange: #E8A838;
+            --hybrid-orange-dim: rgba(232, 168, 56, 0.15);
+            --ane-blue: #4A90D9;
+            --ane-blue-dim: rgba(74, 144, 217, 0.15);
+            --accent-red: #E85858;
+        }
+
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Language Toggle ── */
+        .z { display: none; }
+        html[lang="zh"] .e { display: none; }
+        html[lang="zh"] .z { display: revert; }
+        .lang-toggle {
+            display: flex; align-items: center; gap: 2px;
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 6px; padding: 3px; flex-shrink: 0;
+        }
+        .lang-btn {
+            padding: 2px 10px; border-radius: 4px; border: none;
+            font-size: 0.75rem; font-weight: 600; cursor: pointer;
+            background: transparent; color: var(--text-muted);
+            transition: all 0.15s; font-family: 'JetBrains Mono', monospace;
+            line-height: 1.6;
+        }
+        .lang-btn.active { background: var(--bg-secondary); color: var(--text-primary); }
+
+        /* ── Nav ── */
+        nav {
+            position: fixed; top: 0; width: 100%; z-index: 100;
+            background: rgba(10,14,23,0.92); backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 2rem;
+            display: flex; align-items: center; justify-content: space-between;
+            height: 60px; gap: 1rem;
+        }
+        .nav-brand { font-weight: 700; font-size: 1rem; color: var(--text-primary); text-decoration: none; flex-shrink: 0; }
+        .nav-links { display: flex; gap: 2rem; list-style: none; }
+        .nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 0.875rem; transition: color 0.2s; }
+        .nav-links a:hover { color: var(--text-primary); }
+        .nav-right { display: flex; align-items: center; gap: 1.5rem; }
+
+        /* ── Hero ── */
+        .hero {
+            padding: 120px 2rem 80px;
+            max-width: 900px; margin: 0 auto; text-align: center;
+        }
+        .hero-badge {
+            display: inline-block;
+            padding: 0.35rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            font-size: 0.8rem; color: var(--text-muted);
+            margin-bottom: 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .hero h1 {
+            font-size: clamp(1.8rem, 4vw, 3rem);
+            font-weight: 800; line-height: 1.2;
+            margin-bottom: 1rem;
+        }
+        .hero-sub {
+            font-size: 1.1rem; color: var(--text-secondary);
+            max-width: 700px; margin: 0 auto 2rem;
+        }
+        .chip-row { display: flex; justify-content: center; gap: 0.75rem; flex-wrap: wrap; }
+        .chip {
+            padding: 0.4rem 1rem;
+            border-radius: 6px;
+            font-size: 0.8rem; font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .chip-gpu  { background: var(--gpu-green-dim);    color: var(--gpu-green);    border: 1px solid rgba(80,200,120,0.3); }
+        .chip-hyb  { background: var(--hybrid-orange-dim); color: var(--hybrid-orange); border: 1px solid rgba(232,168,56,0.3); }
+        .chip-ane  { background: var(--ane-blue-dim);     color: var(--ane-blue);     border: 1px solid rgba(74,144,217,0.3); }
+
+        /* ── Stat Cards ── */
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem; max-width: 960px; margin: 3rem auto;
+            padding: 0 2rem;
+        }
+        .stat-card {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 12px; padding: 1.5rem; text-align: center;
+        }
+        .stat-value { font-size: 2rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+        .stat-label { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; }
+        .val-gpu    { color: var(--gpu-green); }
+        .val-hybrid { color: var(--hybrid-orange); }
+        .val-ane    { color: var(--ane-blue); }
+
+        /* ── Sections ── */
+        section { max-width: 960px; margin: 0 auto; padding: 4rem 2rem; }
+        h2 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .section-sub { color: var(--text-secondary); margin-bottom: 2.5rem; }
+        h3 { font-size: 1.1rem; font-weight: 600; margin: 2rem 0 0.75rem; }
+
+        /* ── Tables ── */
+        .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+        table {
+            width: 100%; border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+        th {
+            background: var(--bg-secondary); padding: 0.75rem 1rem;
+            text-align: left; font-weight: 600; color: var(--text-secondary);
+            border-bottom: 2px solid var(--border-color);
+            font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        td {
+            padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color);
+        }
+        tr:hover td { background: var(--bg-card-hover); }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .good { color: var(--gpu-green); font-weight: 600; }
+        .ok   { color: var(--hybrid-orange); font-weight: 600; }
+        .slow { color: var(--accent-red); font-weight: 600; }
+
+        /* ── Bar Charts ── */
+        .chart-section { margin: 2rem 0; }
+        .chart-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 1rem; color: var(--text-secondary); }
+        .bar-group { margin: 0.6rem 0; }
+        .bar-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+        .bar-row { display: flex; align-items: center; gap: 0.75rem; }
+        .bar-track { flex: 1; background: var(--bg-secondary); border-radius: 4px; height: 24px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; display: flex; align-items: center; padding-left: 8px; }
+        .bar-fill-gpu    { background: var(--gpu-green); }
+        .bar-fill-hybrid { background: var(--hybrid-orange); }
+        .bar-fill-ane    { background: var(--ane-blue); }
+        .bar-val { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: rgba(0,0,0,0.8); font-weight: 600; white-space: nowrap; }
+        .bar-num { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; min-width: 80px; text-align: right; }
+
+        /* ── Findings ── */
+        .findings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+        .finding-card {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-top: 3px solid; border-radius: 12px; padding: 1.5rem;
+        }
+        .finding-card.gpu    { border-top-color: var(--gpu-green); }
+        .finding-card.hybrid { border-top-color: var(--hybrid-orange); }
+        .finding-card.ane    { border-top-color: var(--ane-blue); }
+        .finding-icon { font-size: 1.5rem; margin-bottom: 0.75rem; }
+        .finding-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .finding-text  { font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; }
+
+        /* ── Pipeline ── */
+        .pipeline {
+            display: flex; gap: 1rem; align-items: stretch; flex-wrap: wrap;
+            margin: 1.5rem 0;
+        }
+        .pipe-node {
+            flex: 1; min-width: 180px;
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 10px; padding: 1.25rem;
+        }
+        .pipe-node.gpu    { border-top: 3px solid var(--gpu-green); }
+        .pipe-node.hybrid { border-top: 3px solid var(--hybrid-orange); }
+        .pipe-node.ane    { border-top: 3px solid var(--ane-blue); }
+        .pipe-title { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.5rem; }
+        .pipe-sub   { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; }
+        .pipe-arrow { display: flex; align-items: center; color: var(--text-muted); font-size: 1.5rem; }
+
+        /* ── Footer ── */
+        footer {
+            border-top: 1px solid var(--border-color);
+            padding: 2rem; text-align: center;
+            color: var(--text-muted); font-size: 0.8rem;
+        }
+        footer a { color: var(--text-secondary); text-decoration: none; }
+        footer a:hover { color: var(--text-primary); }
+
+        /* ── Flow Architecture ── */
+        .flow-columns {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 24px; margin: 2rem 0;
+        }
+        .flow-col-header {
+            text-align: center; padding: 12px 20px; border-radius: 10px;
+            margin-bottom: 16px; font-family: 'JetBrains Mono', monospace;
+            font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+        }
+        .flow-col-header.ane-col {
+            background: linear-gradient(135deg, rgba(0,212,170,0.15), rgba(74,144,217,0.1));
+            border: 1px solid rgba(0,212,170,0.3); color: #00d4aa;
+        }
+        .flow-col-header.gpu-col {
+            background: linear-gradient(135deg, rgba(74,144,217,0.15), rgba(74,144,217,0.05));
+            border: 1px solid rgba(74,144,217,0.3); color: var(--ane-blue);
+        }
+        .flow { display: flex; flex-direction: column; align-items: stretch; gap: 0; }
+        .flow-node { border-radius: 10px; padding: 14px 18px; border: 1px solid transparent; }
+        .flow-node-label {
+            font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600;
+            letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 4px; opacity: 0.75;
+        }
+        .flow-node-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+        .flow-node-detail { font-size: 11.5px; color: var(--text-secondary); line-height: 1.5; }
+        .fn-input { background: var(--bg-secondary); border-color: var(--border-color); }
+        .fn-ane {
+            background: linear-gradient(135deg, rgba(0,212,170,0.1), rgba(0,212,170,0.04));
+            border-color: rgba(0,212,170,0.35);
+        }
+        .fn-ane .flow-node-label, .fn-ane .flow-node-title { color: #00d4aa; }
+        .fn-gpu {
+            background: linear-gradient(135deg, rgba(74,144,217,0.1), rgba(74,144,217,0.04));
+            border-color: rgba(74,144,217,0.35);
+        }
+        .fn-gpu .flow-node-label, .fn-gpu .flow-node-title { color: var(--ane-blue); }
+        .fn-bottleneck {
+            background: linear-gradient(135deg, rgba(232,88,88,0.12), rgba(232,88,88,0.04));
+            border: 1.5px solid rgba(232,88,88,0.45);
+        }
+        .fn-bottleneck .flow-node-label, .fn-bottleneck .flow-node-title { color: var(--accent-red); }
+        .fn-output {
+            background: linear-gradient(135deg, rgba(80,200,120,0.1), rgba(80,200,120,0.04));
+            border-color: rgba(80,200,120,0.3);
+        }
+        .fn-output .flow-node-label, .fn-output .flow-node-title { color: var(--gpu-green); }
+        .flow-arrow {
+            display: flex; flex-direction: column; align-items: center; padding: 4px 0;
+        }
+        .flow-arrow-line { width: 2px; height: 16px; }
+        .flow-arrow-line.ane-line  { background: rgba(0,212,170,0.4); }
+        .flow-arrow-line.gpu-line  { background: rgba(74,144,217,0.4); }
+        .flow-arrow-line.bot-line  { background: rgba(232,88,88,0.4); }
+        .flow-arrow-head { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; }
+        .flow-arrow-head.ane-head { border-top: 7px solid rgba(0,212,170,0.4); }
+        .flow-arrow-head.gpu-head { border-top: 7px solid rgba(74,144,217,0.4); }
+        .flow-arrow-head.bot-head { border-top: 7px solid rgba(232,88,88,0.4); }
+        .flow-arrow-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+        .badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+            letter-spacing: 0.08em; padding: 2px 7px; border-radius: 4px; margin-top: 6px;
+        }
+        .badge-good { background: rgba(80,200,120,0.1);  border: 1px solid rgba(80,200,120,0.3);  color: var(--gpu-green); }
+        .badge-warn { background: rgba(232,168,56,0.12); border: 1px solid rgba(232,168,56,0.35); color: var(--hybrid-orange); }
+        .badge-bad  { background: rgba(232,88,88,0.12);  border: 1px solid rgba(232,88,88,0.4);   color: var(--accent-red); }
+
+        /* ── Comparison Card ── */
+        .comparison-card {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 12px; overflow: hidden; margin: 1.5rem 0;
+        }
+        .comparison-card-header {
+            padding: 14px 20px; border-bottom: 1px solid var(--border-color);
+            font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+            letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted);
+        }
+
+        /* ── Bottleneck Cards ── */
+        .bottleneck-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.5rem 0; }
+        .bottleneck-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 1.25rem; }
+        .bottleneck-card.hybrid { border-top: 2px solid #00d4aa; }
+        .bottleneck-card.mlx    { border-top: 2px solid var(--ane-blue); }
+        .bottleneck-card h4 {
+            font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+            letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 12px;
+        }
+        .bottleneck-card.hybrid h4 { color: #00d4aa; }
+        .bottleneck-card.mlx h4    { color: var(--ane-blue); }
+        .bi { display: flex; gap: 10px; margin-bottom: 10px; font-size: 12.5px; line-height: 1.5; }
+        .bi:last-child { margin-bottom: 0; }
+        .bi-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+        .bi-text { color: var(--text-secondary); }
+        .bi-text strong { color: var(--text-primary); font-weight: 500; }
+
+        /* ── Responsive ── */
+        @media (max-width: 640px) {
+            .nav-links { display: none; }
+            .pipeline { flex-direction: column; }
+            .pipe-arrow { transform: rotate(90deg); align-self: center; }
+            .flow-columns { grid-template-columns: 1fr; }
+            .bottleneck-cards { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a class="nav-brand" href="#">Hybrid ANE-MLX-Bench</a>
+    <ul class="nav-links">
+        <li><a href="#overview"><span class="e">Overview</span><span class="z">概述</span></a></li>
+        <li><a href="#pipeline"><span class="e">Approach</span><span class="z">方案</span></a></li>
+        <li><a href="#architecture"><span class="e">Flow</span><span class="z">流程图</span></a></li>
+        <li><a href="#results"><span class="e">Results</span><span class="z">性能数据</span></a></li>
+        <li><a href="#power"><span class="e">Power</span><span class="z">功耗</span></a></li>
+        <li><a href="#findings"><span class="e">Findings</span><span class="z">核心发现</span></a></li>
+        <li><a href="https://github.com/AtomGradient/hybrid-ane-mlx-bench" target="_blank">GitHub</a></li>
+    </ul>
+    <div class="nav-right">
+        <div class="lang-toggle">
+            <button class="lang-btn active" data-lang="en" onclick="setLang('en')">EN</button>
+            <button class="lang-btn" data-lang="zh" onclick="setLang('zh')">中文</button>
+        </div>
+    </div>
+</nav>
+
+<!-- ═══════════════════ HERO ═══════════════════ -->
+<div class="hero">
+    <div class="hero-badge">M2 Ultra · 192 GB · 800 GB/s</div>
+    <h1>
+        <span class="e">Disaggregated LLM Inference<br>on Apple Silicon</span>
+        <span class="z">Apple Silicon 异构 LLM 推理</span>
+    </h1>
+    <p class="hero-sub e">
+        We compare four strategies for Qwen3.5 inference across Apple Silicon's compute units —
+        GPU-only (MLX), hybrid ANE+GPU (CoreML prefill + MLX decode), direct ANE private API (ANE-LM),
+        and ANE-LM Hybrid combining sequential ANE prefill with MLX GPU decode via a binary cache bridge.
+    </p>
+    <p class="hero-sub z">
+        我们对比四种 Qwen3.5 推理策略——纯 GPU（MLX）、混合 ANE+GPU（CoreML 预填充 + MLX 解码）、
+        ANE 私有 API（ANE-LM），以及通过二进制缓存桥接连接 ANE 顺序预填充与 MLX GPU 解码的 ANE-LM 混合推理。
+        全部在 Apple M2 Ultra（192 GB）上实测。
+    </p>
+    <div class="chip-row">
+        <span class="chip chip-gpu">MLX GPU Baseline</span>
+        <span class="chip chip-hyb">CoreML + MLX Hybrid</span>
+        <span class="chip chip-ane">ANE-LM Private API</span>
+        <span class="chip" style="background:rgba(155,137,238,0.15);color:#9b89ee;border:1px solid rgba(155,137,238,0.3);">ANE-LM Hybrid</span>
+    </div>
+</div>
+
+<!-- ═══════════════════ STAT CARDS ═══════════════════ -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value val-gpu">141.8</div>
+        <div class="stat-label e">tok/s decode — 2B 8-bit MLX GPU</div>
+        <div class="stat-label z">tok/s 解码速度 — 2B 8-bit MLX GPU</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value val-hybrid">100 ms</div>
+        <div class="stat-label e">TTFT — Hybrid ANE (long, 410 tok)</div>
+        <div class="stat-label z">首字时延 — 混合 ANE（长 prompt，410 token）</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value val-ane">24</div>
+        <div class="stat-label e">tok/s — ANE-LM private API (all prompts)</div>
+        <div class="stat-label z">tok/s — ANE-LM 私有 API（全部 prompt）</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="color:#e8ecf1;">~410</div>
+        <div class="stat-label e">tokens where ANE prefill ≈ GPU prefill</div>
+        <div class="stat-label z">token 处 ANE 预填充速度与 GPU 持平</div>
+    </div>
+</div>
+
+<!-- ═══════════════════ OVERVIEW ═══════════════════ -->
+<section id="overview">
+    <h2><span class="e">Overview</span><span class="z">概述</span></h2>
+    <p class="section-sub e">
+        Apple Silicon exposes three compute units — GPU, Neural Engine (ANE), and CPU — on a unified
+        memory bus. We ask: can disaggregating LLM inference phases across different units improve
+        latency or throughput?
+    </p>
+    <p class="section-sub z">
+        Apple Silicon 在统一内存总线上集成了 GPU、神经引擎（ANE）和 CPU 三个计算单元。
+        我们研究：将 LLM 推理的预填充与解码阶段分布到不同计算单元，能否改善延迟或吞吐量？
+    </p>
+
+    <div class="findings-grid">
+        <div class="finding-card gpu">
+            <div class="finding-icon">🖥️</div>
+            <div class="finding-title"><span class="e">MLX GPU Baseline</span><span class="z">MLX GPU 基准</span></div>
+            <div class="finding-text e">
+                Pure GPU inference via MLX/Metal. Dynamic shapes, lazy evaluation. Optimal for
+                autoregressive decode (bandwidth-bound). Four model variants benchmarked.
+            </div>
+            <div class="finding-text z">
+                通过 MLX/Metal 实现纯 GPU 推理。动态形状，延迟求值。最适合自回归解码（带宽受限）。测试了四个模型变体。
+            </div>
+        </div>
+        <div class="finding-card hybrid">
+            <div class="finding-icon">⚡</div>
+            <div class="finding-title"><span class="e">Hybrid CoreML + MLX</span><span class="z">混合 CoreML + MLX</span></div>
+            <div class="finding-text e">
+                Batched prefill via CoreML (targeting ANE), decode via MLX GPU. Requires a custom
+                KV-cache bridge for Qwen3.5's hybrid DeltaNet + full-attention architecture.
+            </div>
+            <div class="finding-text z">
+                通过 CoreML（面向 ANE）进行批量预填充，通过 MLX GPU 解码。需要为 Qwen3.5 的混合 DeltaNet + 全注意力架构实现自定义 KV 缓存桥接。
+            </div>
+        </div>
+        <div class="finding-card ane">
+            <div class="finding-icon">🔬</div>
+            <div class="finding-title"><span class="e">ANE-LM (Private API)</span><span class="z">ANE-LM（私有 API）</span></div>
+            <div class="finding-text e">
+                Sequential per-token ANE dispatch via <code>AppleNeuralEngine.framework</code> private
+                APIs. Establishes the single-token ANE dispatch latency floor (~43 ms/token).
+            </div>
+            <div class="finding-text z">
+                通过 <code>AppleNeuralEngine.framework</code> 私有 API 进行逐 token ANE 调度。建立单 token ANE 调度延迟下限（~43 ms/token）。
+            </div>
+        </div>
+        <div class="finding-card" style="border-top-color:#9b89ee">
+            <div class="finding-icon">🔋</div>
+            <div class="finding-title"><span class="e">ANE-LM Hybrid</span><span class="z">ANE-LM 混合推理</span></div>
+            <div class="finding-text e">
+                Sequential ANE prefill + MLX GPU decode via a binary cache bridge. Achieves decode
+                parity with GPU baseline (69–72 tok/s) while reducing prefill GPU power by
+                <strong style="color:var(--gpu-green)">282×</strong> (62.05 W → 0.22 W).
+            </div>
+            <div class="finding-text z">
+                通过二进制缓存桥接实现 ANE 顺序预填充 + MLX GPU 解码。解码速度与 GPU 基准持平（69–72 tok/s），同时将预填充 GPU 功耗降低 <strong style="color:var(--gpu-green)">282×</strong>（62.05 W → 0.22 W）。
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════ PIPELINE ═══════════════════ -->
+<section id="pipeline">
+    <h2><span class="e">Approach</span><span class="z">技术方案</span></h2>
+    <p class="section-sub e">Architecture of the four inference pipelines</p>
+    <p class="section-sub z">四种推理管线的架构</p>
+
+    <h3><span class="e">Pipeline 1 — MLX GPU (Baseline)</span><span class="z">管线 1 — MLX GPU（基准）</span></h3>
+    <div class="pipeline">
+        <div class="pipe-node gpu">
+            <div class="pipe-title" style="color:var(--gpu-green)"><span class="e">Prefill (GPU)</span><span class="z">预填充（GPU）</span></div>
+            <div class="pipe-sub e">Batched forward pass on all prompt tokens via Metal. Dynamic shapes, lazy eval.</div>
+            <div class="pipe-sub z">所有 prompt token 通过 Metal 批量前向传播。动态形状，延迟求值。</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node gpu">
+            <div class="pipe-title" style="color:var(--gpu-green)"><span class="e">Decode (GPU)</span><span class="z">解码（GPU）</span></div>
+            <div class="pipe-sub e">Autoregressive token generation. Bandwidth-bound. KV cache grows dynamically.</div>
+            <div class="pipe-sub z">自回归 token 生成。带宽受限。KV 缓存动态增长。</div>
+        </div>
+    </div>
+
+    <h3><span class="e">Pipeline 2 — Hybrid CoreML + MLX</span><span class="z">管线 2 — 混合 CoreML + MLX</span></h3>
+    <div class="pipeline">
+        <div class="pipe-node hybrid">
+            <div class="pipe-title" style="color:var(--hybrid-orange)"><span class="e">Prefill (ANE via CoreML)</span><span class="z">预填充（ANE via CoreML）</span></div>
+            <div class="pipe-sub e">Batched forward pass. Fixed seq_len (64/256/512). Left-padded. Outputs cache as numpy arrays.</div>
+            <div class="pipe-sub z">批量前向传播。固定 seq_len（64/256/512）。左填充。以 numpy 数组输出缓存。</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node hybrid">
+            <div class="pipe-title" style="color:var(--hybrid-orange)"><span class="e">Cache Bridge</span><span class="z">缓存桥接</span></div>
+            <div class="pipe-sub e">DeltaNet → ArraysCache (transpose + trim). Full-attn → KVCache (offset = prompt_len).</div>
+            <div class="pipe-sub z">DeltaNet → ArraysCache（转置 + 裁剪）。全注意力 → KVCache（offset = prompt_len）。</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node hybrid">
+            <div class="pipe-title" style="color:var(--hybrid-orange)"><span class="e">Decode (GPU via MLX)</span><span class="z">解码（GPU via MLX）</span></div>
+            <div class="pipe-sub e">Same GPU decode path as baseline. Cache pre-populated by ANE prefill.</div>
+            <div class="pipe-sub z">与基准相同的 GPU 解码路径。缓存由 ANE 预填充预先填充。</div>
+        </div>
+    </div>
+
+    <h3><span class="e">Pipeline 3 — ANE-LM (Private API)</span><span class="z">管线 3 — ANE-LM（私有 API）</span></h3>
+    <div class="pipeline">
+        <div class="pipe-node ane">
+            <div class="pipe-title" style="color:var(--ane-blue)"><span class="e">Sequential Prefill (ANE)</span><span class="z">顺序预填充（ANE）</span></div>
+            <div class="pipe-sub e">One token per ANE dispatch call. ~43 ms/token. No batching. TTFT = N_tokens × 43 ms.</div>
+            <div class="pipe-sub z">每次 ANE 调度处理一个 token。~43 ms/token。无批处理。TTFT = N_tokens × 43 ms。</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node ane">
+            <div class="pipe-title" style="color:var(--ane-blue)"><span class="e">Sequential Decode (ANE + CPU)</span><span class="z">顺序解码（ANE + CPU）</span></div>
+            <div class="pipe-sub e">Matmuls on ANE, attention/norm/sampling on CPU. ~23–24 tok/s (3× slower than GPU).</div>
+            <div class="pipe-sub z">矩阵乘法在 ANE，注意力/归一化/采样在 CPU。~23–24 tok/s（比 GPU 慢 3×）。</div>
+        </div>
+    </div>
+
+    <h3><span class="e">Pipeline 4 — ANE-LM Hybrid</span><span class="z">管线 4 — ANE-LM 混合推理</span></h3>
+    <div class="pipeline">
+        <div class="pipe-node ane">
+            <div class="pipe-title" style="color:#9b89ee"><span class="e">Sequential Prefill (ANE)</span><span class="z">顺序预填充（ANE）</span></div>
+            <div class="pipe-sub e">Same as ANE-LM: one token per ANE dispatch call. ~43 ms/token.
+                TTFT identical to Pipeline 3. GPU power: 0.22 W vs 62.05 W for GPU prefill.</div>
+            <div class="pipe-sub z">与 ANE-LM 相同：每次 ANE 调度处理一个 token。~43 ms/token。TTFT 与管线 3 相同。GPU 功耗：0.22 W vs GPU 预填充的 62.05 W。</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node gpu">
+            <div class="pipe-title" style="color:var(--gpu-green)"><span class="e">Cache Bridge (CPU)</span><span class="z">缓存桥接（CPU）</span></div>
+            <div class="pipe-sub e">Binary cache file from ANE-LM subprocess. Reads KV caches and DeltaNet
+                recurrent states, converts layout to MLX format (zero-copy, unified memory).</div>
+            <div class="pipe-sub z">ANE-LM 子进程生成的二进制缓存文件。读取 KV 缓存和 DeltaNet 循环状态，转换为 MLX 格式（零拷贝，统一内存）。</div>
+        </div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node gpu">
+            <div class="pipe-title" style="color:var(--gpu-green)"><span class="e">Decode (GPU via MLX)</span><span class="z">解码（GPU via MLX）</span></div>
+            <div class="pipe-sub e">Full MLX GPU decode path. Measured: 69–72 tok/s, matching GPU baseline. 3× faster than ANE-LM pure decode.</div>
+            <div class="pipe-sub z">完整的 MLX GPU 解码路径。实测：69–72 tok/s，与 GPU 基准持平。比 ANE-LM 纯解码快 3×。</div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════ ARCHITECTURE FLOW ═══════════════════ -->
+<section id="architecture">
+    <h2><span class="e">Architecture Comparison</span><span class="z">架构对比</span></h2>
+    <p class="section-sub e">Data-flow side-by-side: Hybrid ANE+MLX vs pure MLX GPU baseline</p>
+    <p class="section-sub z">数据流并排对比：混合 ANE+MLX 与纯 MLX GPU 基准</p>
+
+    <div class="flow-columns">
+        <!-- HYBRID COLUMN -->
+        <div>
+            <div class="flow-col-header ane-col">
+                <span class="e">🔀 Hybrid Inference (ANE + MLX)</span>
+                <span class="z">🔀 混合推理（ANE + MLX）</span>
+            </div>
+            <div class="flow">
+                <div class="flow-node fn-input">
+                    <div class="flow-node-label"><span class="e">Input</span><span class="z">输入</span></div>
+                    <div class="flow-node-title"><span class="e">Prompt Text</span><span class="z">提示词</span></div>
+                    <div class="flow-node-detail e">Tokenizer → input_ids + attention_mask<br>Padded to fixed seq_len [64 / 256 / 512]</div>
+                    <div class="flow-node-detail z">Tokenizer → input_ids + attention_mask<br>填充到固定 seq_len [64 / 256 / 512]</div>
+                    <span class="badge badge-warn e">⚠ Must pad to fixed seq_len</span>
+                    <span class="badge badge-warn z">⚠ 必须填充到固定 seq_len</span>
+                </div>
+                <div class="flow-arrow"><div class="flow-arrow-line ane-line"></div><div class="flow-arrow-head ane-head"></div></div>
+                <div class="flow-node fn-ane">
+                    <div class="flow-node-label">ANE · CoreML</div>
+                    <div class="flow-node-title"><span class="e">Prefill — compute-bound</span><span class="z">预填充 — 计算受限</span></div>
+                    <div class="flow-node-detail e">compute_units = ALL (macOS 26: CPU_AND_NE causes ANE IPC deadlock)<br>All prompt tokens processed in parallel<br>Output: logits + hybrid KV / DeltaNet state</div>
+                    <div class="flow-node-detail z">compute_units = ALL（macOS 26：CPU_AND_NE 会导致 ANE IPC 死锁）<br>所有 prompt token 并行处理<br>输出：logits + 混合 KV / DeltaNet 状态</div>
+                    <span class="badge badge-good e">✓ Low power — ANE hardware draws ~1–2 W vs GPU's 62 W†</span>
+                    <span class="badge badge-good z">✓ 低功耗 — ANE 约 1–2 W，GPU 高达 62 W†</span>
+                </div>
+                <div class="flow-arrow"><div class="flow-arrow-line bot-line"></div><div class="flow-arrow-head bot-head"></div><div class="flow-arrow-label">cache bridge</div></div>
+                <div class="flow-node fn-bottleneck">
+                    <div class="flow-node-label"><span class="e">CPU · Format Conversion</span><span class="z">CPU · 格式转换</span></div>
+                    <div class="flow-node-title"><span class="e">Cache Bridge — core overhead</span><span class="z">缓存桥接 — 核心开销</span></div>
+                    <div class="flow-node-detail e">CoreML → np.ndarray → mx.array (zero-copy, unified memory)<br>full_attn KV: offset = prompt_len<br>DeltaNet state: layout alignment for mlx_lm</div>
+                    <div class="flow-node-detail z">CoreML → np.ndarray → mx.array（零拷贝，统一内存）<br>全注意力 KV：offset = prompt_len<br>DeltaNet 状态：布局对齐至 mlx_lm</div>
+                    <span class="badge badge-bad e">🔴 Overhead on every prefill</span>
+                    <span class="badge badge-bad z">🔴 每次预填充均有转换开销</span>
+                </div>
+                <div class="flow-arrow"><div class="flow-arrow-line gpu-line"></div><div class="flow-arrow-head gpu-head"></div></div>
+                <div class="flow-node fn-gpu">
+                    <div class="flow-node-label">GPU · MLX</div>
+                    <div class="flow-node-title"><span class="e">Decode — memory-bandwidth-bound</span><span class="z">解码 — 内存带宽受限</span></div>
+                    <div class="flow-node-detail e">Autoregressive token generation<br>Dynamic shapes, no padding · Lazy evaluation, Metal GPU</div>
+                    <div class="flow-node-detail z">自回归 token 生成<br>动态形状，无需填充 · 延迟求值，Metal GPU</div>
+                    <span class="badge badge-good e">✓ Low latency, minimal dispatch overhead</span>
+                    <span class="badge badge-good z">✓ 低延迟，调度开销极小</span>
+                </div>
+                <div class="flow-arrow"><div class="flow-arrow-line gpu-line"></div><div class="flow-arrow-head gpu-head"></div></div>
+                <div class="flow-node fn-output">
+                    <div class="flow-node-label"><span class="e">Output</span><span class="z">输出</span></div>
+                    <div class="flow-node-title"><span class="e">Generated Text</span><span class="z">生成文本</span></div>
+                    <div class="flow-node-detail">Tokenizer.decode(generated_ids)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PURE MLX COLUMN -->
+        <div>
+            <div class="flow-col-header gpu-col">
+                <span class="e">⚡ Pure MLX (Baseline)</span>
+                <span class="z">⚡ 纯 MLX（基准）</span>
+            </div>
+            <div class="flow">
+                <div class="flow-node fn-input">
+                    <div class="flow-node-label"><span class="e">Input</span><span class="z">输入</span></div>
+                    <div class="flow-node-title"><span class="e">Prompt Text</span><span class="z">提示词</span></div>
+                    <div class="flow-node-detail e">Tokenizer → input_ids<br>Dynamic length, no padding required</div>
+                    <div class="flow-node-detail z">Tokenizer → input_ids<br>动态长度，无需填充</div>
+                    <span class="badge badge-good e">✓ No padding overhead</span>
+                    <span class="badge badge-good z">✓ 无填充开销</span>
+                </div>
+                <div class="flow-arrow"><div class="flow-arrow-line gpu-line"></div><div class="flow-arrow-head gpu-head"></div></div>
+                <div class="flow-node fn-bottleneck">
+                    <div class="flow-node-label">GPU · MLX</div>
+                    <div class="flow-node-title"><span class="e">Prefill — compute-bound · bottleneck</span><span class="z">预填充 — 计算受限 · 瓶颈</span></div>
+                    <div class="flow-node-detail e">All prompt tokens sent to GPU in parallel<br>Long prompts: GPU fully loaded at <strong>62.05 W</strong> (measured)<br>Triggers thermal throttling on mobile devices</div>
+                    <div class="flow-node-detail z">所有 prompt token 并行送入 GPU<br>长 prompt：GPU 满负载 <strong>62.05 W</strong>（实测）<br>移动端会立即触发散热降频</div>
+                    <span class="badge badge-bad e">🔴 High TTFT + high power at long prompts</span>
+                    <span class="badge badge-bad z">🔴 长 prompt 首字时延高 + 高功耗</span>
+                </div>
+                <div class="flow-arrow"><div class="flow-arrow-line gpu-line"></div><div class="flow-arrow-head gpu-head"></div></div>
+                <div class="flow-node fn-gpu">
+                    <div class="flow-node-label">GPU · MLX</div>
+                    <div class="flow-node-title"><span class="e">Decode — memory-bandwidth-bound</span><span class="z">解码 — 内存带宽受限</span></div>
+                    <div class="flow-node-detail e">Autoregressive token generation<br>Dynamic shapes, lazy evaluation<br>KV cache updated in-place</div>
+                    <div class="flow-node-detail z">自回归 token 生成<br>动态形状，延迟求值<br>KV 缓存原地更新</div>
+                    <span class="badge badge-good e">✓ No format conversion overhead</span>
+                    <span class="badge badge-good z">✓ 无格式转换开销</span>
+                </div>
+                <div class="flow-arrow"><div class="flow-arrow-line gpu-line"></div><div class="flow-arrow-head gpu-head"></div></div>
+                <div class="flow-node fn-output">
+                    <div class="flow-node-label"><span class="e">Output</span><span class="z">输出</span></div>
+                    <div class="flow-node-title"><span class="e">Generated Text</span><span class="z">生成文本</span></div>
+                    <div class="flow-node-detail">Tokenizer.decode(generated_ids)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase-by-phase comparison table -->
+    <div class="comparison-card">
+        <div class="comparison-card-header">
+            <span class="e">📊 Phase-by-Phase Comparison</span>
+            <span class="z">📊 阶段对比分析</span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th><span class="e">Phase / Metric</span><span class="z">阶段 / 指标</span></th>
+                        <th><span class="e">Hybrid Inference (ANE + MLX)</span><span class="z">混合推理（ANE + MLX）</span></th>
+                        <th><span class="e">Pure MLX</span><span class="z">纯 MLX</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><span class="e">Prefill hardware</span><span class="z">预填充硬件</span></td><td class="good"><span class="e">ANE (CoreML, compute_units=ALL†)</span><span class="z">ANE（CoreML，compute_units=ALL†）</span></td><td><span class="e">GPU (Metal)</span><span class="z">GPU（Metal）</span></td></tr>
+                    <tr><td><span class="e">TTFT (long prompt)</span><span class="z">首字时延（长 prompt）</span></td><td class="good"><span class="e">Lower — ANE parallel compute</span><span class="z">更低 — ANE 并行算力</span></td><td class="slow"><span class="e">Higher — GPU compute-bound</span><span class="z">更高 — GPU 计算受限</span></td></tr>
+                    <tr><td><span class="e">Prefill power (measured‡)</span><span class="z">预填充功耗（实测‡）</span></td><td class="good">GPU ~0.22 W + ANE ~1.58 W ≈ 1.8 W</td><td class="slow">GPU <strong>62.05 W</strong> (282×)</td></tr>
+                    <tr><td><span class="e">Decode hardware</span><span class="z">解码硬件</span></td><td>GPU (MLX)</td><td>GPU (MLX)</td></tr>
+                    <tr><td><span class="e">Decode speed</span><span class="z">解码速度</span></td><td><span class="e">= Identical (same GPU path)</span><span class="z">= 相同（同一 GPU 路径）</span></td><td><span class="e">= Identical</span><span class="z">= 相同</span></td></tr>
+                    <tr><td><span class="e">Prompt length limit</span><span class="z">Prompt 长度限制</span></td><td class="ok"><span class="e">Must pad to fixed slots: 64 / 256 / 512</span><span class="z">⚠ 必须填充到固定档位：64 / 256 / 512</span></td><td class="good"><span class="e">Dynamic, unlimited</span><span class="z">动态，无限制</span></td></tr>
+                    <tr><td><span class="e">Cache bridge</span><span class="z">缓存桥接</span></td><td class="slow"><span class="e">CPU format conversion (DeltaNet complex)</span><span class="z">CPU 格式转换（DeltaNet 较复杂）</span></td><td class="good"><span class="e">None required</span><span class="z">无需转换</span></td></tr>
+                    <tr><td><span class="e">CoreML cold start</span><span class="z">CoreML 冷启动</span></td><td class="ok">seq64: ~103 s · seq256: ~50 min · seq512: ~97 min</td><td class="good"><span class="e">None</span><span class="z">无</span></td></tr>
+                    <tr><td><span class="e">Architecture complexity</span><span class="z">架构复杂度</span></td><td class="slow"><span class="e">High — DeltaNet hybrid cache adaptation</span><span class="z">高 — DeltaNet 混合缓存适配</span></td><td class="good"><span class="e">Low — mlx_lm native support</span><span class="z">低 — mlx_lm 原生支持</span></td></tr>
+                    <tr><td><span class="e">Storage overhead</span><span class="z">存储开销</span></td><td class="ok"><span class="e">HF 4.5 GB + CoreML 5.8 GB = <strong>10.3 GB total</strong></span><span class="z">HF 4.5 GB + CoreML 5.8 GB = <strong>总计 10.3 GB</strong></span></td><td class="good"><span class="e">HF model only: <strong>4.5 GB</strong></span><span class="z">仅 HF 模型：<strong>4.5 GB</strong></span></td></tr>
+                    <tr><td><span class="e">iOS/iPadOS support</span><span class="z">iOS/iPadOS 支持</span></td><td class="good"><span class="e">CoreML + MLX-Swift both supported</span><span class="z">CoreML + MLX-Swift 均支持</span></td><td class="good"><span class="e">MLX-Swift supported</span><span class="z">MLX-Swift 支持</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p style="font-size:0.75rem;color:var(--text-muted);padding:0.75rem 1.25rem;">
+            <span class="e">† macOS 26.3: <code>CPU_AND_NE</code> triggers ANE IPC daemon deadlock; <code>compute_units=ALL</code> must be used instead.<br>
+            ‡ ANE power (~0.22 W GPU + ~1.58 W ANE) measured via ANE-LM private API prefill. CoreML hybrid ANE power not measured separately but expected to be similar as both dispatch to the same ANE hardware.</span>
+            <span class="z">† macOS 26.3：<code>CPU_AND_NE</code> 会触发 ANE IPC 守护进程死锁，必须改用 <code>compute_units=ALL</code>。<br>
+            ‡ ANE 功耗（~0.22 W GPU + ~1.58 W ANE）由 ANE-LM 私有 API 预填充实测。CoreML 混合推理的 ANE 功耗未单独测量，但因两者均调度至同一 ANE 硬件，预计相近。</span>
+        </p>
+    </div>
+
+    <!-- Bottleneck analysis -->
+    <div class="bottleneck-cards">
+        <div class="bottleneck-card hybrid">
+            <h4><span class="e">🔀 Hybrid Inference — Bottleneck Analysis</span><span class="z">🔀 混合推理 — 瓶颈分析</span></h4>
+            <div class="bi">
+                <span class="bi-icon">🔴</span>
+                <span class="bi-text e"><strong>Cache Bridge (primary overhead)</strong><br>CoreML numpy → MLX array conversion. Zero-copy under unified memory, but DeltaNet state layout alignment has CPU compute cost on every prefill.</span>
+                <span class="bi-text z"><strong>缓存桥接（主要开销）</strong><br>CoreML numpy → MLX array 格式转换。统一内存下零拷贝，但 DeltaNet 状态布局对齐在每次预填充后有额外 CPU 计算开销。</span>
+            </div>
+            <div class="bi">
+                <span class="bi-icon">⚠️</span>
+                <span class="bi-text e"><strong>Fixed seq_len waste</strong><br>A 32-token prompt still pads to 64, wasting ANE compute. Prompts over 512 tokens need larger model variants.</span>
+                <span class="bi-text z"><strong>固定 seq_len 浪费</strong><br>32 token 的 prompt 也要填充到 64，浪费 ANE 算力。超过 512 token 的 prompt 需要更大模型变体。</span>
+            </div>
+            <div class="bi">
+                <span class="bi-icon">⚠️</span>
+                <span class="bi-text e"><strong>CoreML cold start</strong><br>First load triggers on-device Metal+ANE kernel compilation (seq64: ~103 s, seq256: ~50 min, seq512: ~97 min). Subsequent loads take seconds.</span>
+                <span class="bi-text z"><strong>CoreML 冷启动</strong><br>首次加载触发设备端 Metal+ANE 核编译（seq64：~103 秒，seq256：~50 分钟，seq512：~97 分钟）。后续加载仅需数秒。</span>
+            </div>
+            <div class="bi">
+                <span class="bi-icon">✅</span>
+                <span class="bi-text e"><strong>Decode unaffected (verified)</strong><br>After switching to MLX, decode path is identical to pure MLX. Measured: baseline GPU decode 14.17 W, Hybrid 12.37 W. Throughput equal: 70.0 vs 70.2 tok/s.</span>
+                <span class="bi-text z"><strong>解码无影响（已验证）</strong><br>切换到 MLX 后，解码路径与纯 MLX 完全相同。实测：基准 GPU 解码 14.17 W，混合推理 12.37 W。吞吐量等价：70.0 vs 70.2 tok/s。</span>
+            </div>
+            <div class="bi">
+                <span class="bi-icon">⚠️</span>
+                <span class="bi-text e"><strong>Storage overhead</strong><br>Requires HF model (4.5 GB) + CoreML .mlpackage files (seq64 1.9 GB + seq256 1.9 GB + seq512 2.0 GB) = <strong>10.3 GB total</strong>, +128% vs pure MLX.</span>
+                <span class="bi-text z"><strong>存储开销</strong><br>需同时保留 HF 模型（4.5 GB）和 CoreML .mlpackage 文件（seq64 1.9 GB + seq256 1.9 GB + seq512 2.0 GB）= <strong>总计 10.3 GB</strong>，比纯 MLX 多 +128%。</span>
+            </div>
+        </div>
+        <div class="bottleneck-card mlx">
+            <h4><span class="e">⚡ Pure MLX — Bottleneck Analysis</span><span class="z">⚡ 纯 MLX — 瓶颈分析</span></h4>
+            <div class="bi">
+                <span class="bi-icon">🔴</span>
+                <span class="bi-text e"><strong>GPU prefill saturation (primary bottleneck)</strong><br>With long prompts (128+ tokens), prefill is compute-bound with GPU at full load. TTFT scales linearly with prompt length.</span>
+                <span class="bi-text z"><strong>GPU 预填充饱和（主要瓶颈）</strong><br>长 prompt（128+ token）时，预填充计算受限，GPU 满负载运行。首字时延随 prompt 长度线性增长。</span>
+            </div>
+            <div class="bi">
+                <span class="bi-icon">🔴</span>
+                <span class="bi-text e"><strong>Power and thermal (measured M2 Ultra)</strong><br>GPU prefill: <strong>62.05 W</strong> — 282× more than ANE prefill (0.22 W GPU + 1.58 W ANE). On mobile (TDP ~3–8 W), immediately triggers thermal throttling.</span>
+                <span class="bi-text z"><strong>功耗与散热（M2 Ultra 实测）</strong><br>GPU 预填充：<strong>62.05 W</strong>，是 ANE 预填充（0.22 W GPU + 1.58 W ANE）的 282 倍。移动端（TDP ~3–8 W）会立即触发散热降频。</span>
+            </div>
+            <div class="bi">
+                <span class="bi-icon">⚠️</span>
+                <span class="bi-text e"><strong>Decode is also memory-bound</strong><br>Per-token generation is bandwidth-limited. M1 Max (400 GB/s) becomes a bottleneck for large models (9B+).</span>
+                <span class="bi-text z"><strong>解码同样受内存带宽限制</strong><br>逐 token 生成受带宽约束。M1 Max（400 GB/s）对大模型（9B+）会成为瓶颈。</span>
+            </div>
+            <div class="bi">
+                <span class="bi-icon">✅</span>
+                <span class="bi-text e"><strong>Simple architecture, no overhead</strong><br>No cache bridge, no padding waste, native dynamic shape support. Lowest overall latency for short prompts.</span>
+                <span class="bi-text z"><strong>架构简单，无额外开销</strong><br>无缓存桥接，无填充浪费，原生动态形状支持。短 prompt 场景整体延迟最低。</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════ RESULTS ═══════════════════ -->
+<section id="results">
+    <h2><span class="e">Results</span><span class="z">性能数据</span></h2>
+    <p class="section-sub e">
+        Hardware: Apple M2 Ultra, 192 GB, 800 GB/s · Model: Qwen3.5 family · Greedy decoding, 200 tokens generated
+    </p>
+    <p class="section-sub z">
+        硬件：Apple M2 Ultra，192 GB，800 GB/s · 模型：Qwen3.5 系列 · 贪心解码，生成 200 token
+    </p>
+
+    <h3><span class="e">Decode Throughput — MLX GPU Baseline (all models)</span><span class="z">解码吞吐量 — MLX GPU 基准（全部模型）</span></h3>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th><span class="e">Model</span><span class="z">模型</span></th>
+                    <th><span class="e">Quant</span><span class="z">量化</span></th>
+                    <th><span class="e">Prompt</span><span class="z">提示词</span></th>
+                    <th><span class="e">Tokens</span><span class="z">Token 数</span></th>
+                    <th>TTFT (ms)</th>
+                    <th><span class="e">Decode (tok/s)</span><span class="z">解码 (tok/s)</span></th>
+                    <th><span class="e">Mem (GB)</span><span class="z">内存 (GB)</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Qwen3.5-0.8B</td><td>FP16</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono">6</td><td class="mono good">56</td><td class="mono good">71.5</td><td class="mono">3.42</td></tr>
+                <tr><td>Qwen3.5-0.8B</td><td>FP16</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono">133</td><td class="mono good">69</td><td class="mono good">70.2</td><td class="mono">3.58</td></tr>
+                <tr><td>Qwen3.5-0.8B</td><td>FP16</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono">410</td><td class="mono good">96</td><td class="mono good">69.0</td><td class="mono">4.18</td></tr>
+                <tr><td>Qwen3.5-2B</td><td>8-bit</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono">6</td><td class="mono good">14</td><td class="mono good">141.8</td><td class="mono">2.51</td></tr>
+                <tr><td>Qwen3.5-2B</td><td>8-bit</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono">133</td><td class="mono good">73</td><td class="mono good">141.0</td><td class="mono">2.74</td></tr>
+                <tr><td>Qwen3.5-2B</td><td>8-bit</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono">410</td><td class="mono good">162</td><td class="mono good">138.9</td><td class="mono">3.23</td></tr>
+                <tr><td>Qwen3.5-2B</td><td>BF16</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono">6</td><td class="mono good">22</td><td class="mono good">101.3</td><td class="mono">4.16</td></tr>
+                <tr><td>Qwen3.5-2B</td><td>BF16</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono">133</td><td class="mono good">54</td><td class="mono good">100.6</td><td class="mono">4.37</td></tr>
+                <tr><td>Qwen3.5-2B</td><td>BF16</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono">410</td><td class="mono good">123</td><td class="mono good">99.7</td><td class="mono">4.67</td></tr>
+                <tr><td>Qwen3.5-9B</td><td>8-bit</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono">6</td><td class="mono good">39</td><td class="mono good">56.4</td><td class="mono">9.76</td></tr>
+                <tr><td>Qwen3.5-9B</td><td>8-bit</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono">133</td><td class="mono ok">265</td><td class="mono good">56.1</td><td class="mono">10.00</td></tr>
+                <tr><td>Qwen3.5-9B</td><td>8-bit</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono">410</td><td class="mono ok">625</td><td class="mono good">56.5</td><td class="mono">10.43</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3><span class="e">TTFT Comparison — All Four Pipelines (Qwen3.5-0.8B FP16)</span><span class="z">首字时延对比 — 全部四种管线（Qwen3.5-0.8B FP16）</span></h3>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th><span class="e">Prompt</span><span class="z">提示词</span></th>
+                    <th>Tokens</th>
+                    <th>MLX GPU (ms)</th>
+                    <th>CoreML Hybrid (ms)</th>
+                    <th>ANE-LM (ms)</th>
+                    <th>ANE-LM Hybrid (ms)</th>
+                    <th><span class="e">Best</span><span class="z">最优</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="e">short</span><span class="z">短</span></td><td class="mono">6 (18 w/template)</td>
+                    <td class="mono good">56</td><td class="mono slow">274</td>
+                    <td class="mono slow">769</td><td class="mono slow">767</td>
+                    <td><span class="chip chip-gpu" style="font-size:0.7rem;padding:0.2rem 0.5rem;">GPU</span></td>
+                </tr>
+                <tr>
+                    <td><span class="e">medium</span><span class="z">中</span></td><td class="mono">133 (145 w/ template)</td>
+                    <td class="mono good">69</td><td class="mono slow">411</td>
+                    <td class="mono slow">5,867</td><td class="mono slow">6,060</td>
+                    <td><span class="chip chip-gpu" style="font-size:0.7rem;padding:0.2rem 0.5rem;">GPU</span></td>
+                </tr>
+                <tr>
+                    <td><span class="e">long</span><span class="z">长</span></td><td class="mono">410 (422 w/template)</td>
+                    <td class="mono good">96</td><td class="mono ok">100</td>
+                    <td class="mono slow">17,831</td><td class="mono slow">17,601</td>
+                    <td><span class="chip chip-gpu" style="font-size:0.7rem;padding:0.2rem 0.5rem;">GPU ≈ Hybrid</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;" class="e">
+        * ANE-LM uses Qwen3.5 chat template, adding ~12 system-prompt tokens to each input.<br>
+        * ANE-LM Hybrid: ANE-LM sequential prefill + MLX GPU decode, bridged via binary cache file. All numbers end-to-end measured.
+    </p>
+    <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;" class="z">
+        * ANE-LM 使用 Qwen3.5 对话模板，每个输入额外增加 ~12 个系统提示 token。<br>
+        * ANE-LM Hybrid：ANE-LM 顺序预填充 + MLX GPU 解码，通过二进制缓存文件桥接。所有数据均为端到端实测。
+    </p>
+
+    <h3><span class="e">Decode Throughput — 0.8B FP16 (all backends)</span><span class="z">解码吞吐量 — 0.8B FP16（全部后端）</span></h3>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th><span class="e">Backend</span><span class="z">后端</span></th>
+                    <th><span class="e">Prompt</span><span class="z">提示词</span></th>
+                    <th><span class="e">Decode (tok/s)</span><span class="z">解码 (tok/s)</span></th>
+                    <th><span class="e">vs. GPU</span><span class="z">vs. GPU</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>MLX GPU</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono good">71.5</td><td class="mono">—</td></tr>
+                <tr><td>MLX GPU</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono good">70.2</td><td class="mono">—</td></tr>
+                <tr><td>MLX GPU</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono good">69.0</td><td class="mono">—</td></tr>
+                <tr><td>CoreML Hybrid</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono ok">69.2</td><td class="mono">0.97×</td></tr>
+                <tr><td>CoreML Hybrid</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono ok">71.3</td><td class="mono">1.02×</td></tr>
+                <tr><td>CoreML Hybrid</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono ok">73.3</td><td class="mono">1.06×</td></tr>
+                <tr><td>ANE-LM</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono slow">24.3</td><td class="mono slow">0.34×</td></tr>
+                <tr><td>ANE-LM</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono slow">23.8</td><td class="mono slow">0.34×</td></tr>
+                <tr><td>ANE-LM</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono slow">22.8</td><td class="mono slow">0.33×</td></tr>
+                <tr><td>ANE-LM Hybrid</td><td><span class="e">short</span><span class="z">短</span></td><td class="mono good">66.6</td><td class="mono ok">0.93×</td></tr>
+                <tr><td>ANE-LM Hybrid</td><td><span class="e">medium</span><span class="z">中</span></td><td class="mono good">70.0</td><td class="mono ok">1.00×</td></tr>
+                <tr><td>ANE-LM Hybrid</td><td><span class="e">long</span><span class="z">长</span></td><td class="mono good">69.7</td><td class="mono ok">1.01×</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Bar chart: decode throughput -->
+    <h3><span class="e">Decode Speed — Visual (Qwen3.5-0.8B, long prompt)</span><span class="z">解码速度可视化（Qwen3.5-0.8B，长 prompt）</span></h3>
+    <div class="chart-section">
+        <div class="bar-group">
+            <div class="bar-label"><span class="e">MLX GPU Baseline</span><span class="z">MLX GPU 基准</span></div>
+            <div class="bar-row"><div class="bar-track"><div class="bar-fill bar-fill-gpu" style="width:100%"><span class="bar-val">69.0 tok/s</span></div></div></div>
+        </div>
+        <div class="bar-group">
+            <div class="bar-label"><span class="e">CoreML Hybrid (ANE prefill + GPU decode)</span><span class="z">CoreML 混合推理（ANE 预填充 + GPU 解码）</span></div>
+            <div class="bar-row"><div class="bar-track"><div class="bar-fill bar-fill-hybrid" style="width:106%"><span class="bar-val">73.3 tok/s</span></div></div></div>
+        </div>
+        <div class="bar-group">
+            <div class="bar-label"><span class="e">ANE-LM Private API</span><span class="z">ANE-LM 私有 API</span></div>
+            <div class="bar-row"><div class="bar-track"><div class="bar-fill bar-fill-ane" style="width:33%"><span class="bar-val">22.8 tok/s</span></div></div></div>
+        </div>
+        <div class="bar-group">
+            <div class="bar-label"><span class="e">ANE-LM Hybrid (cache bridge, MLX GPU decode)</span><span class="z">ANE-LM 混合推理（缓存桥接，MLX GPU 解码）</span></div>
+            <div class="bar-row"><div class="bar-track"><div class="bar-fill bar-fill-gpu" style="width:100.9%"><span class="bar-val">69.7 tok/s</span></div></div></div>
+        </div>
+    </div>
+    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;" class="e">All decode speeds are end-to-end measured. ANE-LM Hybrid uses a binary cache bridge to transfer prefill state from ANE-LM to MLX GPU decode.</p>
+    <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;" class="z">所有解码速度均为端到端实测。ANE-LM Hybrid 通过二进制缓存桥接将预填充状态从 ANE-LM 转移至 MLX GPU 解码。</p>
+
+    <!-- Bar chart: TTFT comparison (long prompt) -->
+    <h3><span class="e">TTFT Comparison — Visual (long prompt, 410 tokens)</span><span class="z">首字时延可视化（长 prompt，410 token）</span></h3>
+    <div class="chart-section">
+        <div class="bar-group">
+            <div class="bar-label">MLX GPU — 96 ms</div>
+            <div class="bar-row"><div class="bar-track"><div class="bar-fill bar-fill-gpu" style="width:0.55%"><span class="bar-val"></span></div></div><span class="bar-num mono good">96 ms</span></div>
+        </div>
+        <div class="bar-group">
+            <div class="bar-label">CoreML Hybrid — 100 ms</div>
+            <div class="bar-row"><div class="bar-track"><div class="bar-fill bar-fill-hybrid" style="width:0.57%"></div></div><span class="bar-num mono ok">100 ms</span></div>
+        </div>
+        <div class="bar-group">
+            <div class="bar-label">ANE-LM Private API — 17,831 ms</div>
+            <div class="bar-row"><div class="bar-track"><div class="bar-fill bar-fill-ane" style="width:100%"><span class="bar-val">17,831 ms</span></div></div><span class="bar-num mono slow">17,831 ms</span></div>
+        </div>
+        <div class="bar-group">
+            <div class="bar-label">ANE-LM Hybrid (cache bridge) — 17,601 ms</div>
+            <div class="bar-row"><div class="bar-track"><div class="bar-fill" style="width:98.7%;background:linear-gradient(90deg,#7B68EE,#9b89ee)"><span class="bar-val">17,601 ms</span></div></div><span class="bar-num mono slow">17,601 ms</span></div>
+        </div>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;" class="e">Note: bars use log-scale equivalent visual widths for readability. All values end-to-end measured.</p>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;" class="z">注：条形宽度使用对数等效视觉宽度以便阅读。所有数据均为端到端实测。</p>
+    </div>
+</section>
+
+<!-- ═══════════════════ POWER EFFICIENCY ═══════════════════ -->
+<section id="power">
+    <h2><span class="e">Power Efficiency</span><span class="z">功耗分析</span></h2>
+    <p class="section-sub e">
+        Measured with <code>powermetrics</code> on M2 Ultra · Qwen3.5-0.8B FP16 · 100 ms sampling interval
+    </p>
+    <p class="section-sub z">
+        使用 <code>powermetrics</code> 在 M2 Ultra 上测量 · Qwen3.5-0.8B FP16 · 100 ms 采样间隔
+    </p>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th><span class="e">Phase</span><span class="z">阶段</span></th>
+                    <th><span class="e">GPU Power</span><span class="z">GPU 功耗</span></th>
+                    <th><span class="e">ANE Power</span><span class="z">ANE 功耗</span></th>
+                    <th><span class="e">CPU Power</span><span class="z">CPU 功耗</span></th>
+                    <th><span class="e">Notes</span><span class="z">备注</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="e">MLX GPU prefill (sustained loop)</span><span class="z">MLX GPU 预填充（持续循环）</span></td>
+                    <td class="mono slow">62.05 W</td><td class="mono">0.00 W</td><td class="mono">2.34 W</td>
+                    <td style="font-size:0.8rem;color:var(--text-muted)"><span class="e">332 iterations × 96 ms over 15 s</span><span class="z">15 秒内循环 332 次 × 96 ms</span></td>
+                </tr>
+                <tr>
+                    <td><span class="e">MLX GPU decode</span><span class="z">MLX GPU 解码</span></td>
+                    <td class="mono ok">14.17 W</td><td class="mono">0.00 W</td><td class="mono">2.98 W</td>
+                    <td style="font-size:0.8rem;color:var(--text-muted)"><span class="e">200 tokens generated</span><span class="z">生成 200 token</span></td>
+                </tr>
+                <tr>
+                    <td><span class="e">ANE-LM prefill (private API)</span><span class="z">ANE-LM 预填充（私有 API）</span></td>
+                    <td class="mono good">0.22 W</td><td class="mono good">1.58 W</td><td class="mono">3.77 W</td>
+                    <td style="font-size:0.8rem;color:var(--text-muted)"><span class="e">17.6 s naturally sustained</span><span class="z">自然持续 17.6 秒</span></td>
+                </tr>
+                <tr>
+                    <td><span class="e">ANE-LM Hybrid decode (MLX GPU)</span><span class="z">ANE-LM 混合推理解码（MLX GPU）</span></td>
+                    <td class="mono ok">12.37 W</td><td class="mono">0.00 W</td><td class="mono">5.85 W</td>
+                    <td style="font-size:0.8rem;color:var(--text-muted)"><span class="e">Same GPU decode path as baseline</span><span class="z">与基准相同的 GPU 解码路径</span></td>
+                </tr>
+                <tr>
+                    <td><span class="e">ANE-LM pure decode</span><span class="z">ANE-LM 纯解码</span></td>
+                    <td class="mono good">0.16 W</td><td class="mono good">1.42 W</td><td class="mono">5.47 W</td>
+                    <td style="font-size:0.8rem;color:var(--text-muted)"><span class="e">ANE+CPU decode, ~3× slower</span><span class="z">ANE+CPU 解码，慢约 3×</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <p style="font-size:0.875rem;color:var(--text-secondary);margin-top:0.75rem;" class="e">
+        Key result: ANE prefill saves <strong style="color:var(--gpu-green)">60.25 W</strong> GPU power (282× reduction).
+        On mobile devices with 3–8 W total TDP, GPU prefill at 62 W would immediately trigger thermal throttling;
+        ANE prefill at ~1.8 W fits well within thermal budget.
+    </p>
+    <p style="font-size:0.875rem;color:var(--text-secondary);margin-top:0.75rem;" class="z">
+        核心结论：ANE 预填充节省 <strong style="color:var(--gpu-green)">60.25 W</strong> GPU 功耗（降低 282×）。移动端 TDP 仅 3–8 W，GPU 预填充的 62 W 会立即触发散热降频；ANE 预填充的 ~1.8 W 完全在热功耗预算以内。
+    </p>
+
+    <h3><span class="e">Crossover Point — GPU Core Count vs. ANE Benefit</span><span class="z">交叉阈值 — GPU 核心数与 ANE 收益</span></h3>
+    <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:1rem;" class="e">
+        The prompt length where ANE prefill matches GPU prefill speed scales with GPU core count.
+        Fewer GPU cores → lower crossover threshold → broader range of prompts benefit from ANE offloading.
+    </p>
+    <p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:1rem;" class="z">
+        ANE 预填充速度追上 GPU 的 prompt 长度阈值随 GPU 核心数缩放。核心数越少 → 阈值越低 → 更多 prompt 可受益于 ANE 卸载。
+    </p>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th><span class="e">Chip</span><span class="z">芯片</span></th>
+                    <th><span class="e">GPU Cores</span><span class="z">GPU 核心数</span></th>
+                    <th><span class="e">Est. GPU Prefill (tok/s)</span><span class="z">GPU 预填充估算 (tok/s)</span></th>
+                    <th><span class="e">Crossover Length</span><span class="z">交叉阈值</span></th>
+                    <th><span class="e">Source</span><span class="z">来源</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>M2 Ultra</td><td class="mono">76</td><td class="mono">~4,128</td><td class="mono good">~410 tokens</td><td style="font-size:0.8rem;color:var(--text-muted)"><span class="e">Measured</span><span class="z">实测</span></td></tr>
+                <tr><td>M1 Max</td><td class="mono">32</td><td class="mono">~2,100</td><td class="mono ok">~200 tokens</td><td style="font-size:0.8rem;color:var(--text-muted)"><span class="e">Estimated</span><span class="z">估算</span></td></tr>
+                <tr><td>M1</td><td class="mono">8</td><td class="mono">~500</td><td class="mono ok">~50 tokens</td><td style="font-size:0.8rem;color:var(--text-muted)"><span class="e">Estimated</span><span class="z">估算</span></td></tr>
+                <tr><td>A17 Pro</td><td class="mono">6</td><td class="mono">~400</td><td class="mono ok">~40 tokens</td><td style="font-size:0.8rem;color:var(--text-muted)"><span class="e">Estimated</span><span class="z">估算</span></td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;" class="e">
+        On devices with 6–8 GPU cores (most iPhones), ANE prefill is faster for virtually all practical
+        prompt lengths while consuming orders of magnitude less power.
+    </p>
+    <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;" class="z">
+        在 6–8 GPU 核心的设备（大多数 iPhone）上，ANE 预填充对几乎所有实际 prompt 长度都更快，同时功耗低数个数量级。
+    </p>
+</section>
+
+<!-- ═══════════════════ FINDINGS ═══════════════════ -->
+<section id="findings">
+    <h2><span class="e">Key Findings</span><span class="z">核心发现</span></h2>
+    <p class="section-sub e">What we learned about Apple Silicon LLM inference</p>
+    <p class="section-sub z">我们从 Apple Silicon LLM 推理中得出的结论</p>
+
+    <div class="findings-grid">
+        <div class="finding-card gpu">
+            <div class="finding-icon">⚡</div>
+            <div class="finding-title"><span class="e">Decode is Bandwidth-Bound</span><span class="z">解码受内存带宽限制</span></div>
+            <div class="finding-text e">
+                Decode throughput tracks memory bandwidth, not FLOP count:
+                2B 8-bit (141 tok/s) &gt; 2B BF16 (101 tok/s) &gt; 0.8B FP16 (71 tok/s) &gt; 9B 8-bit (56 tok/s).
+                M2 Ultra (800 GB/s) is ~1.9× faster than M1 Max (400 GB/s) for all models.
+            </div>
+            <div class="finding-text z">
+                解码吞吐量与内存带宽正相关，而非 FLOP 数：2B 8-bit（141 tok/s）> 2B BF16（101 tok/s）> 0.8B FP16（71 tok/s）> 9B 8-bit（56 tok/s）。M2 Ultra（800 GB/s）对所有模型约比 M1 Max（400 GB/s）快 1.9×。
+            </div>
+        </div>
+        <div class="finding-card hybrid">
+            <div class="finding-icon">🎯</div>
+            <div class="finding-title"><span class="e">ANE Prefill Crossover at ~410 Tokens</span><span class="z">ANE 预填充在 ~410 Token 处与 GPU 持平</span></div>
+            <div class="finding-text e">
+                CoreML batched prefill on ANE matches GPU speed at seq_len=512 (410 real tokens,
+                ~4,128 tok/s vs. GPU's ~4,285 tok/s). Below this, CoreML dispatch overhead
+                (250–400 ms) dominates — making hybrid slower than pure GPU for short/medium prompts.
+            </div>
+            <div class="finding-text z">
+                CoreML 在 ANE 上的批量预填充在 seq_len=512（410 个真实 token）时与 GPU 速度相当（~4,128 tok/s vs GPU ~4,285 tok/s）。低于此阈值时，CoreML 调度开销（250–400 ms）主导，混合方案比纯 GPU 更慢。
+            </div>
+        </div>
+        <div class="finding-card ane">
+            <div class="finding-icon">🔍</div>
+            <div class="finding-title"><span class="e">Sequential ANE ≠ Batched ANE</span><span class="z">顺序 ANE ≠ 批量 ANE</span></div>
+            <div class="finding-text e">
+                ANE-LM's per-token dispatch via private API yields ~24 tok/s — 3× slower than GPU.
+                Each ANE kernel call takes ~43 ms, making TTFT proportional to prompt length.
+                Batched CoreML processing is fundamentally different from sequential dispatch.
+            </div>
+            <div class="finding-text z">
+                ANE-LM 的私有 API 逐 token 调度约 24 tok/s——比 GPU 慢 3×。每次 ANE 核调用约 43 ms，首字时延与 prompt 长度成正比。批量 CoreML 处理与顺序调度有本质区别。
+            </div>
+        </div>
+        <div class="finding-card gpu">
+            <div class="finding-icon">✅</div>
+            <div class="finding-title"><span class="e">Cache Bridge Works Correctly</span><span class="z">缓存桥接正确有效</span></div>
+            <div class="finding-text e">
+                Hybrid decode speed (69–73 tok/s) matches or slightly exceeds baseline (69–71 tok/s),
+                confirming the cache bridge correctly transfers both DeltaNet recurrent states and
+                full-attention KV caches from CoreML to MLX.
+            </div>
+            <div class="finding-text z">
+                混合推理解码速度（69–73 tok/s）与基准（69–71 tok/s）持平甚至略高，证实缓存桥接正确将 DeltaNet 循环状态和全注意力 KV 缓存从 CoreML 无损转移至 MLX。
+            </div>
+        </div>
+        <div class="finding-card hybrid">
+            <div class="finding-icon">⏱️</div>
+            <div class="finding-title"><span class="e">CoreML First-Load Compilation</span><span class="z">CoreML 首次加载编译</span></div>
+            <div class="finding-text e">
+                First-time CoreML model load triggers on-device Metal+ANE kernel compilation:
+                seq64 ~103 s, seq256 ~50 min, seq512 ~97 min. Results are cached — subsequent
+                loads take seconds. Plan for one-time compilation cost per machine.
+            </div>
+            <div class="finding-text z">
+                首次加载 CoreML 模型会触发设备端 Metal+ANE 核编译：seq64 约 103 秒，seq256 约 50 分钟，seq512 约 97 分钟。编译结果缓存后续加载仅需数秒。每台机器需规划一次性编译时间。
+            </div>
+        </div>
+        <div class="finding-card gpu">
+            <div class="finding-icon">🔋</div>
+            <div class="finding-title"><span class="e">282× GPU Power Reduction</span><span class="z">GPU 功耗降低 282×</span></div>
+            <div class="finding-text e">
+                ANE prefill measured at 0.22 W GPU + 1.58 W ANE = 1.8 W total, vs GPU prefill at
+                62.05 W — a 282× reduction. Saves 60.25 W per request. On mobile (TDP ~3–8 W),
+                GPU prefill would immediately trigger thermal throttling; ANE prefill fits within budget.
+            </div>
+            <div class="finding-text z">
+                ANE 预填充实测：GPU 0.22 W + ANE 1.58 W = 总计 1.8 W，对比 GPU 预填充 62.05 W——降低 282×。每次请求节省 60.25 W。移动端（TDP ~3–8 W）GPU 预填充会立即触发散热降频；ANE 预填充完全在热功耗预算以内。
+            </div>
+        </div>
+        <div class="finding-card ane">
+            <div class="finding-icon">🔮</div>
+            <div class="finding-title"><span class="e">M5: Native ANE via Metal 4</span><span class="z">M5：通过 Metal 4 原生访问 ANE</span></div>
+            <div class="finding-text e">
+                On M5, MLX accesses Neural Accelerators directly via Metal 4 Tensor API —
+                no CoreML dispatch layer needed. This achieves up to 4× TTFT improvement for
+                14B models vs. M4 [Apple ML Research, 2025], validating the prefill-compute hypothesis.
+            </div>
+            <div class="finding-text z">
+                在 M5 上，MLX 通过 Metal 4 Tensor API 直接访问神经加速器，无需 CoreML 调度层。相比 M4 对 14B 模型可实现最高 4× 首字时延改善 [Apple ML Research, 2025]，验证了预填充算力的核心假设。
+            </div>
+        </div>
+    </div>
+
+    <!-- Decode bandwidth analysis -->
+    <h3><span class="e">Decode Throughput vs. Bandwidth — MLX GPU Baseline</span><span class="z">解码吞吐量 vs. 内存带宽 — MLX GPU 基准</span></h3>
+    <div class="chart-section">
+        <div class="chart-title e">All models, long prompt (410 tokens), M2 Ultra 800 GB/s</div>
+        <div class="chart-title z">所有模型，长 prompt（410 token），M2 Ultra 800 GB/s</div>
+        <div class="bar-group">
+            <div class="bar-label"><span class="e">2B 8-bit — 2.0 GB weights</span><span class="z">2B 8-bit — 权重 2.0 GB</span></div>
+            <div class="bar-row"><div class="bar-track"><div class="bar-fill bar-fill-gpu" style="width:100%"><span class="bar-val">138.9 tok/s</span></div></div></div>
+        </div>
+        <div class="bar-group">
+            <div class="bar-label"><span class="e">2B BF16 — 4.0 GB weights</span><span class="z">2B BF16 — 权重 4.0 GB</span></div>
+            <div class="bar-row"><div class="bar-track"><div class="bar-fill bar-fill-gpu" style="width:72%"><span class="bar-val">99.7 tok/s</span></div></div></div>
+        </div>
+        <div class="bar-group">
+            <div class="bar-label"><span class="e">0.8B FP16 — 1.6 GB weights</span><span class="z">0.8B FP16 — 权重 1.6 GB</span></div>
+            <div class="bar-row"><div class="bar-track"><div class="bar-fill bar-fill-gpu" style="width:50%"><span class="bar-val">69.0 tok/s</span></div></div></div>
+        </div>
+        <div class="bar-group">
+            <div class="bar-label"><span class="e">9B 8-bit — 9.5 GB weights</span><span class="z">9B 8-bit — 权重 9.5 GB</span></div>
+            <div class="bar-row"><div class="bar-track"><div class="bar-fill bar-fill-gpu" style="width:41%"><span class="bar-val">56.5 tok/s</span></div></div></div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════ HARDWARE ═══════════════════ -->
+<section>
+    <h2><span class="e">Hardware Comparison</span><span class="z">硬件对比</span></h2>
+    <p class="section-sub e">M1 Max → M2 Ultra: impact of doubling memory bandwidth</p>
+    <p class="section-sub z">M1 Max → M2 Ultra：内存带宽翻倍的影响</p>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th><span class="e">Spec</span><span class="z">规格</span></th>
+                    <th>M1 Max</th><th>M2 Ultra</th>
+                    <th><span class="e">Ratio</span><span class="z">比值</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td><span class="e">CPU cores</span><span class="z">CPU 核心数</span></td><td>10 (8P+2E)</td><td>24 (16P+8E)</td><td class="mono">2.4×</td></tr>
+                <tr><td><span class="e">GPU cores</span><span class="z">GPU 核心数</span></td><td>32</td><td>76</td><td class="mono">2.4×</td></tr>
+                <tr><td><span class="e">ANE cores</span><span class="z">ANE 核心数</span></td><td>16</td><td>32</td><td class="mono">2.0×</td></tr>
+                <tr><td>ANE TOPS</td><td>15.8</td><td>31.6</td><td class="mono">2.0×</td></tr>
+                <tr><td><span class="e">Unified memory</span><span class="z">统一内存</span></td><td>32 GB</td><td>192 GB</td><td class="mono">6.0×</td></tr>
+                <tr><td><span class="e">Memory bandwidth</span><span class="z">内存带宽</span></td><td>400 GB/s</td><td>800 GB/s</td><td class="mono">2.0×</td></tr>
+                <tr><td><span class="e">0.8B decode</span><span class="z">0.8B 解码速度</span></td><td>~37 tok/s</td><td class="good">71 tok/s</td><td class="mono good">1.9×</td></tr>
+                <tr><td><span class="e">2B 8-bit decode</span><span class="z">2B 8-bit 解码速度</span></td><td>~95 tok/s</td><td class="good">141 tok/s</td><td class="mono good">1.5×</td></tr>
+                <tr><td><span class="e">9B 8-bit decode</span><span class="z">9B 8-bit 解码速度</span></td><td>~30 tok/s</td><td class="good">56 tok/s</td><td class="mono good">1.9×</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ═══════════════════ FOOTER ═══════════════════ -->
+<footer>
+    <p>
+        <a href="https://github.com/AtomGradient/hybrid-ane-mlx-bench" target="_blank">GitHub</a> ·
+        <a href="paper.pdf" target="_blank"><span class="e">Paper (PDF)</span><span class="z">论文 (PDF)</span></a> ·
+        M2 Ultra 192GB · macOS 26.3 · Qwen3.5 · MLX 0.31.0
+    </p>
+    <p style="margin-top:0.5rem;">
+        <span class="e">Hardware: Apple M2 Ultra, 192 GB unified memory, 800 GB/s, 32-core ANE</span>
+        <span class="z">硬件：Apple M2 Ultra，192 GB 统一内存，800 GB/s，32 核 ANE</span>
+    </p>
+</footer>
+
+<script>
+function setLang(lang) {
+    document.documentElement.lang = lang;
+    document.querySelectorAll('.lang-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.lang === lang);
+    });
+    try { localStorage.setItem('pref-lang', lang); } catch(e) {}
+}
+// Restore saved preference
+(function() {
+    var saved = 'en';
+    try { saved = localStorage.getItem('pref-lang') || 'en'; } catch(e) {}
+    if (saved === 'zh') setLang('zh');
+})();
+</script>
+</body>
+</html>

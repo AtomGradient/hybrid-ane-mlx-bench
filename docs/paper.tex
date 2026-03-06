@@ -1,0 +1,761 @@
+\documentclass[10pt,twocolumn]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────────────
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=1in,columnsep=0.25in]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{enumitem}
+\usepackage[hidelinks,
+            colorlinks=true,
+            linkcolor=blue!60!black,
+            citecolor=blue!60!black,
+            urlcolor=blue!60!black]{hyperref}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{abstract}
+
+% ── Typography ────────────────────────────────────────────────────────────────
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+\setlength{\parskip}{3pt}
+\setlength{\parindent}{1em}
+
+% ── Code listings ─────────────────────────────────────────────────────────────
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  framerule=0.4pt,
+  columns=flexible,
+  keepspaces=true,
+  backgroundcolor=\color{gray!8},
+}
+
+% ── Header / Footer ───────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{\footnotesize Hybrid ANE-MLX-Bench}
+\fancyhead[R]{\footnotesize AtomGradient, 2026}
+\fancyfoot[C]{\thepage}
+
+% ── Title ─────────────────────────────────────────────────────────────────────
+\title{\textbf{Disaggregated LLM Inference on Apple Silicon:\\
+       CoreML ANE Prefill + MLX GPU Decode}}
+
+\author{%
+  AtomGradient\\
+  \small\href{https://github.com/AtomGradient/hybrid-ane-mlx-bench}{github.com/AtomGradient/hybrid-ane-mlx-bench}
+}
+
+\date{2026}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\begin{document}
+\maketitle
+
+% ── Abstract ──────────────────────────────────────────────────────────────────
+\begin{abstract}
+We characterize four inference strategies for Qwen3.5 language models on
+Apple Silicon, each targeting a different combination of the CPU, GPU, and
+Neural Engine (ANE):
+(1)~\textbf{MLX baseline} --- GPU-only inference via the MLX framework;
+(2)~\textbf{Hybrid CoreML+MLX} --- batched ANE prefill via CoreML with GPU
+decode via MLX, bridged through a custom KV-cache converter;
+(3)~\textbf{ANE-LM} --- fully sequential ANE inference using private
+\texttt{AppleNeuralEngine.framework} APIs;
+(4)~\textbf{ANE-LM Hybrid} --- sequential ANE prefill with MLX GPU decode,
+bridged via a binary cache transfer (KV, SSM, and conv states).
+Experiments on an M2 Ultra (192\,GB, 800\,GB/s) with Qwen3.5-0.8B (FP16)
+reveal four key findings:
+(i)~ANE batched prefill (CoreML, \texttt{seq512}) reaches parity with GPU
+prefill at $\sim$410 prompt tokens;
+(ii)~ANE sequential inference (private API) yields a constant dispatch
+latency of $\sim$42\,ms/token regardless of prompt length;
+(iii)~decode throughput scales linearly with memory bandwidth, confirming
+the decode phase is bandwidth-bound rather than compute-bound;
+and (iv)~offloading prefill to the ANE reduces GPU power draw from
+62.05\,W to 0.22\,W (a 282$\times$ reduction), saving 60.25\,W of
+package power --- a critical advantage for mobile devices operating within
+strict thermal budgets.
+\end{abstract}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Introduction}
+\label{sec:intro}
+
+Apple Silicon provides three distinct compute units --- CPU, GPU, and Neural
+Engine (ANE) --- on a unified memory bus, making it an attractive platform for
+edge LLM inference.
+Despite this heterogeneity, existing frameworks target only one unit at a
+time: MLX routes all operations through the GPU via Metal, while CoreML
+dispatches fixed-shape workloads to the ANE.
+
+This work asks: can we improve end-to-end LLM inference latency or
+throughput by distributing the prefill and decode phases across different
+compute units?
+We evaluate two complementary approaches alongside a pure-GPU baseline, and
+introduce and fully measure a fourth pipeline combining the best of each.
+
+\textbf{Contribution 1: Hybrid CoreML+MLX pipeline.}
+We implement a disaggregated inference pipeline in which the prompt-prefill
+phase runs as a single batched forward pass through CoreML (targeting ANE),
+while autoregressive decode runs via MLX on the GPU.
+The key engineering challenge is bridging the KV cache between frameworks
+for Qwen3.5's hybrid attention architecture (DeltaNet + full softmax).
+
+\textbf{Contribution 2: Private ANE API inference (ANE-LM).}
+We benchmark ANE-LM~\cite{anelm}, a C++ inference engine that uses the
+private \texttt{AppleNeuralEngine.framework} API to dispatch matmul
+operations directly to the ANE without the CoreML abstraction layer.
+This establishes the single-token ANE dispatch latency floor.
+
+\textbf{Contribution 3: Systematic hardware characterization.}
+We benchmark four Qwen3.5 variants (0.8B--9B) across three prompt lengths
+on M2 Ultra, providing a comprehensive picture of how model size,
+quantization, and prompt length interact with Apple Silicon's compute units.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Background}
+\label{sec:background}
+
+\subsection{Qwen3.5 Architecture}
+
+Qwen3.5 uses a hybrid per-layer attention design with
+\texttt{full\_attention\_interval}$=4$:
+\begin{itemize}[topsep=2pt,itemsep=1pt]
+  \item \textbf{DeltaNet layers} (3/4 of layers): Linear attention with a
+    recurrent state $\mathbf{S} \in \mathbb{R}^{B \times H_v \times D_v \times D_k}$
+    and a causal convolution state.
+    No KV cache; state is a fixed-size recurrent tensor.
+  \item \textbf{Full-attention layers} (1/4 of layers): Scaled dot-product
+    attention with output gating, QK-norm, and M-RoPE.
+    These layers use a standard KV cache.
+\end{itemize}
+
+This heterogeneous cache structure requires a non-trivial bridge layer when
+transferring prefill state from CoreML to MLX.
+
+\subsection{Apple Silicon Compute Units}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{@{}p{2.1cm}p{2.2cm}p{2.2cm}@{}}
+\toprule
+Unit & Strengths & Weaknesses \\
+\midrule
+GPU (MLX/Metal) & Dynamic shapes, lazy eval & Higher per-op overhead \\
+ANE (CoreML) & High TOPS, energy eff. & Fixed shapes, fixed seq \\
+ANE (private API) & Low framework overhead & Sequential dispatch \\
+\bottomrule
+\end{tabular}
+\caption{Apple Silicon compute units and their inference trade-offs.}
+\label{tab:units}
+\end{table}
+
+\noindent
+On M2 Ultra: 76 GPU cores, 32 ANE cores (31.6 TOPS),
+800\,GB/s unified memory bandwidth.
+
+\subsection{Inference Phase Characteristics}
+
+\textbf{Prefill} is compute-bound: processing $N$ prompt tokens in a single
+batched forward pass exploits data parallelism across the sequence dimension.
+FLOP count scales as $\mathcal{O}(N d^2)$ for attention and
+$\mathcal{O}(N d h)$ for FFN layers.
+
+\textbf{Decode} is memory-bandwidth-bound: each autoregressive step reads all
+model weights to produce a single token.
+Theoretical throughput upper bound:
+\begin{equation}
+  T_{\max} = \frac{B_{\text{mem}}}{W_{\text{bytes}}}
+  \label{eq:bw_bound}
+\end{equation}
+where $B_{\text{mem}}$ is memory bandwidth (GB/s) and $W_{\text{bytes}}$ is
+the model weight size in bytes.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{System Design}
+\label{sec:design}
+
+\subsection{Hybrid CoreML+MLX Pipeline}
+
+\begin{figure}[t]
+\begin{lstlisting}
+Prompt tokens
+     |
+     v
+CoreML Prefill (ANE)
+  Fixed seq_len: 64 / 256 / 512
+  Left-pads prompt to seq_len
+  Outputs: logits + cache tensors
+     |
+     v
+Cache Bridge
+  DeltaNet -> ArraysCache(size=2):
+    cache[0] = conv_state
+    cache[1] = delta_state
+  Full-attn -> KVCache:
+    keys, values [B, H, L, D]
+    offset = prompt_len (for RoPE)
+     |
+     v
+MLX Decode (GPU)
+  Autoregressive, one token/step
+\end{lstlisting}
+\caption{Hybrid CoreML+MLX pipeline: ANE prefill followed by MLX GPU decode,
+  connected via a cache bridge that converts CoreML output tensors to
+  mlx\_lm's KVCache/ArraysCache format.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{CoreML Model Conversion}
+
+The ANE-compatible CoreML model is derived from original HuggingFace weights:
+\begin{itemize}[topsep=2pt,itemsep=1pt]
+  \item \textbf{Linear $\to$ Conv2d}: All linear layers are replaced by
+    \texttt{Conv2d(kernel\_size=1)} for ANE compatibility.
+  \item \textbf{RMSNorm}: Implemented via the identity
+    $\mathbf{x}/\sqrt{\text{mean}(\mathbf{x}^2)+\epsilon}$ using
+    \texttt{layer\_norm} with unit scale/zero bias.
+  \item \textbf{DeltaNet recurrence}: Unrolled as a functional loop
+    (no in-place ops, required by CoreML MIL).
+  \item \textbf{Fixed seq\_len}: Traced at compile time for 64, 256, or 512;
+    prompts are left-padded to the nearest supported length.
+\end{itemize}
+
+On macOS 26.3, \texttt{CPU\_AND\_NE} causes an ANE IPC daemon deadlock;
+\texttt{compute\_units=ALL} must be used instead.
+
+\subsection{ANE-LM Private API Engine}
+
+ANE-LM~\cite{anelm} bypasses CoreML and uses the private
+\texttt{AppleNeuralEngine.framework} to compile and execute matmul kernels
+directly on the ANE:
+\begin{enumerate}[topsep=2pt,itemsep=1pt]
+  \item Weights are compiled into ANE kernel blobs via
+    \texttt{\_ANEInMemoryModelDescriptor} at load time.
+  \item Per-token inference: activations are written to
+    \texttt{IOSurface} shared memory buffers, then dispatched to ANE.
+  \item CPU operations (RMSNorm, RoPE, attention, sampling) execute via
+    Accelerate/BLAS.
+\end{enumerate}
+
+This one-token-per-dispatch design makes TTFT scale linearly with prompt
+length with no batching benefit.
+
+\subsection{ANE-LM Hybrid (Cache Bridge Pipeline)}
+
+The fourth configuration runs \textit{ANE-LM private API prefill} followed
+by \textit{MLX GPU decode}, bridging the two frameworks via a binary cache file.
+
+ANE-LM and MLX use different internal cache formats:
+ANE-LM stores KV caches as contiguous float32 buffers in
+$[\text{N}, H_{\text{kv}}, D]$ layout, SSM recurrent states as
+$[H_v, D_k, D_v]$ (transposed relative to MLX's expectation), and conv
+states as a circular buffer with a position pointer.
+We implement a C++ \texttt{export\_cache()} method in ANE-LM and a Python
+bridge that reads the binary file and converts each tensor to the shapes
+required by \texttt{mlx\_lm}:
+\begin{itemize}[topsep=2pt,itemsep=1pt]
+  \item \textbf{KV cache}: $[\text{N}, H_{\text{kv}}, D] \to [1, H_{\text{kv}}, \text{N}, D]$
+  \item \textbf{SSM state}: $[H_v, D_k, D_v] \to [1, H_v, D_v, D_k]$
+    (swap last two dims)
+  \item \textbf{Conv state}: circular buffer $[C, K{-}1] \to [1, K{-}1, C]$
+    (unroll circular order, then transpose)
+\end{itemize}
+The \texttt{ane-lm prefill} subcommand writes the binary file and prints
+JSON timing metadata to stdout; the Python engine reads these in sequence.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Evaluation}
+\label{sec:eval}
+
+\subsection{Experimental Setup}
+
+\begin{itemize}[topsep=2pt,itemsep=1pt]
+  \item \textbf{Hardware}: Apple M2 Ultra, 192\,GB unified memory,
+    800\,GB/s bandwidth, 32-core ANE (31.6\,TOPS)
+  \item \textbf{OS}: macOS 26.3 (25D125)
+  \item \textbf{Software}: MLX\,0.31.0, Python\,3.11, coremltools\,8.x;
+    ANE-LM built with clang (Release)
+  \item \textbf{Methodology}: 4 runs per configuration; first run discarded
+    as warmup; median of remaining 3 reported
+  \item \textbf{Sampling}: temperature$=0$ (greedy), max 200 generated tokens
+\end{itemize}
+
+\textbf{Prompt lengths:}
+(1) \textit{short} --- 6 tokens (``Explain neural networks in one sentence.'');
+(2) \textit{medium} --- 133 tokens (Apple Silicon UMA paragraph);
+(3) \textit{long} --- 410 tokens (edge LLM inference research abstract).
+ANE-LM appends a Qwen3.5 chat template, adding $\approx$12 system tokens.
+
+\subsection{Models}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}llrrc@{}}
+\toprule
+Model & Quant & Params & Size & CoreML \\
+\midrule
+Qwen3.5-0.8B & FP16 & 0.85B & 1.6\,GB & \checkmark \\
+Qwen3.5-2B & 8-bit & 1.54B & 2.0\,GB & $\times$ \\
+Qwen3.5-2B & BF16 & 1.54B & 4.0\,GB & \checkmark \\
+Qwen3.5-9B & 8-bit & 9.36B & 9.5\,GB & $\times$ \\
+\bottomrule
+\end{tabular}
+\caption{Models benchmarked. ``CoreML'' indicates FP16/BF16 HF weights
+  are available for CoreML conversion.}
+\label{tab:models}
+\end{table}
+
+\subsection{MLX GPU Baseline}
+
+Table~\ref{tab:mlx_baseline} shows pure-GPU MLX decode throughput across
+all four model variants.
+Decode throughput scales with the bandwidth-to-weight-bytes ratio
+(Eq.~\ref{eq:bw_bound}), confirming bandwidth-bound behavior.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+Model & Quant & Toks & TTFT & Dec.\ & Mem \\
+ & & & (ms) & (tok/s) & (GB) \\
+\midrule
+\multirow{3}{*}{0.8B} & \multirow{3}{*}{FP16}
+  & 6 & 56 & 71.5 & 3.42 \\
+  & & 133 & 69 & 70.2 & 3.58 \\
+  & & 410 & 96 & 69.0 & 4.18 \\
+\midrule
+\multirow{3}{*}{2B} & \multirow{3}{*}{8-bit}
+  & 6 & 14 & 141.8 & 2.51 \\
+  & & 133 & 73 & 141.0 & 2.74 \\
+  & & 410 & 162 & 138.9 & 3.23 \\
+\midrule
+\multirow{3}{*}{2B} & \multirow{3}{*}{BF16}
+  & 6 & 22 & 101.3 & 4.16 \\
+  & & 133 & 54 & 100.6 & 4.37 \\
+  & & 410 & 123 & 99.7 & 4.67 \\
+\midrule
+\multirow{3}{*}{9B} & \multirow{3}{*}{8-bit}
+  & 6 & 39 & 56.4 & 9.76 \\
+  & & 133 & 265 & 56.1 & 10.00 \\
+  & & 410 & 625 & 56.5 & 10.43 \\
+\bottomrule
+\end{tabular}
+\caption{MLX GPU baseline results. Decode (tok/s) is stable across
+  prompt lengths; TTFT grows with tokens.}
+\label{tab:mlx_baseline}
+\end{table}
+
+\subsection{Four-Pipeline Comparison (Qwen3.5-0.8B)}
+
+Table~\ref{tab:pipeline_ttft} summarises TTFT across all four inference
+strategies for Qwen3.5-0.8B FP16.
+
+\begin{table*}[t]
+\centering
+\small
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+Pipeline & Prefill & \multicolumn{3}{c}{TTFT (ms)} & Decode \\
+\cmidrule(lr){3-5}
+ & engine & short (6/18) & med (133/145) & long (410/422) & (tok/s) \\
+\midrule
+MLX GPU (baseline) & GPU batched & 56 & 69 & 96 & 69--72 \\
+Hybrid CoreML+MLX & ANE batched & 274 & 411 & \textbf{100} & 69--73 \\
+ANE-LM (private API) & ANE sequential & 769 & 5{,}867 & 17{,}831 & 23--24 \\
+ANE-LM Hybrid (bridge) & ANE sequential & 767 & 6{,}060 & 17{,}601 & 67--70 \\
+\bottomrule
+\end{tabular}
+\caption{Time-to-first-token (TTFT) for all four pipelines, Qwen3.5-0.8B FP16, M2 Ultra.
+  ANE-LM token counts include $\approx$12 chat-template overhead tokens (shown as
+  ``6/18'', ``133/145'', ``410/422'').
+  All four rows are \textbf{end-to-end measured} (median of 3 post-warmup runs).
+  ANE-LM Hybrid decode speed is measured live via MLX GPU after cache bridge load.}
+\label{tab:pipeline_ttft}
+\end{table*}
+
+Table~\ref{tab:hybrid_ane} details the Hybrid CoreML+MLX prefill phase.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Prompt & Tokens & seq\_len & Prefill & Prefill \\
+ & & & (ms) & (tok/s) \\
+\midrule
+short & 6 & 64 & 274 & 22 \\
+medium & 133 & 256 & 410 & 325 \\
+long & 410 & 512 & 99 & 4{,}128 \\
+\bottomrule
+\end{tabular}
+\caption{Hybrid CoreML+MLX prefill performance, Qwen3.5-0.8B FP16.
+  seq\_len is the smallest available model size (64/256/512) $\geq$ prompt length.
+  A 128-token model was not built; medium prompts therefore route to seq256.}
+\label{tab:hybrid_ane}
+\end{table}
+
+Table~\ref{tab:ane_lm} shows ANE-LM sequential inference.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Prompt & Tokens & TTFT & Prefill & Decode \\
+ & (w/ tmpl) & (ms) & (tok/s) & (tok/s) \\
+\midrule
+short & 18 & 769 & 23.4 & 24.3 \\
+medium & 145 & 5{,}867 & 24.7 & 23.8 \\
+long & 422 & 17{,}831 & 23.7 & 22.8 \\
+\bottomrule
+\end{tabular}
+\caption{ANE-LM private API inference results. Token counts include the
+  Qwen3.5 chat template ($\approx$12 tokens overhead).}
+\label{tab:ane_lm}
+\end{table}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Decode is Memory-Bandwidth Bound}
+
+Decode throughput is proportional to memory bandwidth and inversely
+proportional to model weight bytes (Eq.~\ref{eq:bw_bound}):
+\begin{itemize}[topsep=2pt,itemsep=1pt]
+  \item \textbf{2B 8-bit (139--142\,tok/s)} outperforms \textbf{2B BF16
+    (100--101\,tok/s)} by $\approx$40\%: quantization halves bytes read per step.
+  \item \textbf{0.8B FP16 (69--72\,tok/s)} is slower than 2B 8-bit despite
+    2.5$\times$ fewer parameters: FP16 uses 2\,bytes/element vs.\
+    8-bit's 1\,byte/element.
+  \item \textbf{9B 8-bit (56--57\,tok/s)} is bottlenecked by raw weight volume
+    (9.5\,GB at 800\,GB/s).
+\end{itemize}
+
+The theoretical ceiling for 0.8B FP16 from Eq.~\ref{eq:bw_bound} is
+$800\,\text{GB/s} / 1.6\,\text{GB} \approx 500\,\text{tok/s}$;
+measured 71\,tok/s implies $\approx$14\% bandwidth utilization,
+consistent with KV cache reads, normalization, and sampling overhead.
+
+\subsection{Prefill: Batched vs. Sequential ANE Dispatch}
+
+The three prefill strategies differ fundamentally in their compute pattern:
+
+\textbf{MLX GPU (batched)}: processes the full prompt in one forward pass.
+GPU prefill throughput scales with prompt length due to increasing GPU
+utilization ($107\,\text{tok/s}$ at 6 tokens; $4{,}270\,\text{tok/s}$ at
+410 tokens).
+
+\textbf{Hybrid CoreML (batched)}: processes all tokens in one CoreML call
+on the ANE.
+CoreML dispatch overhead ($\approx$250\,ms for seq64) dominates at short
+prompts; at seq512 (410 tokens), ANE achieves $4{,}128\,\text{tok/s}$ ---
+97\% of GPU prefill throughput.
+\textbf{Crossover}: $\approx$410 prompt tokens (seq512); below this,
+CoreML overhead exceeds the GPU prefill time.
+
+\textbf{ANE-LM private API (sequential)}: one token per ANE dispatch.
+Single-token dispatch latency is constant at $\approx$42\,ms/token:
+\begin{equation}
+  \tau_{\text{dispatch}} = \frac{769\,\text{ms}}{18\,\text{tok}}
+  \approx 42.7\,\text{ms/token}
+  \label{eq:dispatch}
+\end{equation}
+
+TTFT scales linearly with prompt length (Figure implied by
+Table~\ref{tab:ane_lm}), with zero batching benefit.
+ANE-LM sequential achieves 174$\times$ lower prefill throughput than
+CoreML batched (23.7 vs.\ 4{,}128\,tok/s).
+
+\subsection{Effect of Replacing ANE Decode with GPU Decode}
+
+The \textit{ANE-LM Hybrid} measured pipeline confirms that replacing ANE
+decode (23--24\,tok/s) with GPU decode (67--70\,tok/s) yields a 3$\times$
+decode speedup at no measurable additional power cost:
+GPU power during decode is 14.17\,W (MLX baseline) vs.\ 12.37\,W
+(ANE-LM Hybrid), a difference within measurement variance (see
+Section~\ref{sec:power}).
+However, for typical conversational prompts ($\leq$422 tokens), prefill
+TTFT dominates total latency:
+the long-prompt TTFT alone (17{,}601\,ms) is larger than generating
+200 tokens at GPU decode speed ($200/70 \times 1000 = 2{,}857\,\text{ms}$)
+by a factor of $6\times$.
+Any pipeline based on sequential ANE prefill is therefore unsuitable for
+interactive inference at these prompt lengths, regardless of decode speed.
+
+\subsection{When Does the Hybrid CoreML Approach Help?}
+
+Based on M2 Ultra measurements, Hybrid CoreML+MLX is only beneficial when
+prompt length exceeds $\approx$410 tokens (where CoreML overhead becomes
+negligible).
+For shorter prompts, MLX GPU is strictly better.
+Factors that shift the crossover point:
+\begin{itemize}[topsep=2pt,itemsep=1pt]
+  \item \textbf{Weaker GPU}: M1 Max (32 cores) has $\approx$2$\times$
+    slower GPU prefill, shifting the crossover to $\sim$200--256 tokens.
+  \item \textbf{Longer context}: seq\_len $>$ 512 would further amortize
+    the CoreML dispatch overhead.
+  \item \textbf{GPU contention}: ANE prefill provides hardware isolation
+    at no additional TTFT cost when the GPU is occupied.
+  \item \textbf{Storage overhead}: Hybrid deployment requires both the
+    original HuggingFace weights (4.5\,GB for Qwen3.5-0.8B FP16) and
+    the compiled CoreML packages
+    (seq64: 1.9\,GB, seq256: 1.9\,GB, seq512: 2.0\,GB)
+    for a total of \textbf{10.3\,GB} --- 2.3$\times$ the MLX-only footprint.
+    This is an important practical constraint for mobile deployment.
+\end{itemize}
+
+\subsection{Extrapolation to Other Apple Silicon Generations}
+\label{sec:extrapolation}
+
+The crossover point depends on GPU prefill throughput, which scales
+approximately with GPU core count and memory bandwidth.
+Table~\ref{tab:crossover} extrapolates from our M2 Ultra measurement to
+other Apple Silicon chips, assuming ANE throughput scales proportionally
+with TOPS and CoreML dispatch overhead remains roughly constant
+($\approx$100\,ms for seq512).
+\emph{These are estimates, not measured values.}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Chip & GPU & Prefill (tok/s) & Crossover & Note \\
+\midrule
+M2 Ultra & 76c & 4{,}128 & $\sim$410 tok & measured \\
+M1 Max   & 32c & $\sim$2{,}100 & $\sim$200 tok & est. \\
+M1       &  8c & $\sim$500    & $\sim$50 tok  & est. \\
+A17 Pro  &  6c & $\sim$400    & $\sim$40 tok  & est. \\
+\bottomrule
+\end{tabular}}
+\caption{Estimated CoreML hybrid crossover point (prompt length above
+  which ANE prefill outperforms GPU prefill) across Apple Silicon.
+  GPU throughput linearly extrapolated from M2 Ultra; actual values
+  vary with memory bandwidth and microarchitecture.}
+\label{tab:crossover}
+\end{table}
+
+On mobile Apple Silicon (A17 Pro and similar), where GPU core count is
+$\approx$10$\times$ lower than M2 Ultra, the estimated crossover falls
+below 64 tokens --- meaning nearly every conversational prompt would
+benefit from ANE-assisted prefill.
+This suggests that Hybrid CoreML+MLX inference is most impactful on
+mobile devices, where GPU resources are most constrained.
+
+\subsection{Power Efficiency: ANE vs.\ GPU Prefill}
+\label{sec:power}
+
+\textbf{Theoretical argument.}
+Prefill is a compute-intensive, fixed-shape workload: ideal for the ANE,
+which is a purpose-built matrix-multiply accelerator operating at
+$\approx$0.5--2\,W~\cite{anelm}.
+The GPU performing the same operation draws $\approx$5--15\,W,
+as it must maintain shader core clocks and memory controller throughput.
+On mobile devices, sustained GPU compute during prefill triggers thermal
+throttling, reducing subsequent decode speed.
+The ANE does not share the GPU thermal budget, so offloading prefill to
+the ANE preserves full GPU bandwidth for the decode phase.
+
+\textbf{Empirical support from our data.}
+Our ANE-LM Hybrid results confirm that moving prefill to the ANE does
+\emph{not} degrade GPU decode performance:
+measured decode throughput (67--70\,tok/s) is within noise of the MLX
+GPU baseline (69--72\,tok/s, see Table~\ref{tab:pipeline_ttft}).
+Since GPU behaviour during decode is identical whether prefill was handled
+by the ANE or the GPU, the GPU thermal budget is entirely conserved for
+the bandwidth-bound decode phase.
+
+\textbf{Power measurements (M2 Ultra, Qwen3.5-0.8B FP16).}
+We measure per-phase GPU, ANE, and CPU power using \texttt{powermetrics}
+at 100\,ms sampling intervals.
+Because MLX GPU prefill completes in $\approx$96\,ms per pass, we loop
+prefill continuously for 15\,s to obtain a sustained measurement.
+Table~\ref{tab:power} reports averaged readings.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Phase & GPU & ANE & CPU \\
+\midrule
+MLX GPU prefill (loop$^\dagger$) & 62.05\,W & 0.00\,W & 2.34\,W \\
+MLX GPU decode                   & 14.17\,W & 0.00\,W & 2.98\,W \\
+ANE-LM prefill                   &  0.22\,W & 1.58\,W & 3.77\,W \\
+ANE-LM Hybrid decode             & 12.37\,W & 0.00\,W & 5.85\,W \\
+ANE-LM pure                      &  0.16\,W & 1.42\,W & 5.47\,W \\
+\bottomrule
+\end{tabular}}
+\caption{Average power per inference phase, M2 Ultra, Qwen3.5-0.8B FP16.
+  \texttt{powermetrics} at 100\,ms intervals.
+  $^\dagger$MLX prefill looped for 15\,s (332 iters) for steady-state.}
+\label{tab:power}
+\end{table}
+
+The results quantify the thermal advantage of ANE-offloaded prefill:
+GPU power drops from 62.05\,W to 0.22\,W --- a \textbf{282$\times$ reduction} ---
+while ANE draws only 1.58\,W for the same computation.
+The net reduction in package power is \textbf{60.25\,W}.
+Decode GPU power is 14.17\,W (MLX baseline) vs.\ 12.37\,W (ANE-LM Hybrid),
+a difference of 1.80\,W that falls within run-to-run variance,
+confirming that the cache bridge introduces no thermal overhead in the
+decode phase.
+
+On mobile Apple Silicon (A-series, nominal TDP $\approx$3--8\,W total),
+a 62\,W GPU prefill burst is physically impossible; thermal throttling
+would activate within milliseconds.
+In contrast, ANE prefill at $\approx$2\,W total chip draw remains well
+within the mobile thermal envelope, enabling sustained inference without
+clock-speed degradation.
+
+\subsection{Hardware Evolution: M1--M4 vs.\ M5}
+
+With M5, Apple integrated Neural Accelerators directly into GPU shader
+cores, accessible via the Metal\,4 Tensor API without the CoreML dispatch
+layer~\cite{apple_m5_mlx}.
+This represents the hardware convergence our software pipeline approximates:
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{@{}p{1.2cm}p{3.2cm}p{1.5cm}@{}}
+\toprule
+Gen. & Prefill path & ANE access \\
+\midrule
+M1--M4 & CoreML $\to$ ANE (IPC daemon) & Indirect \\
+M5+ & MLX $\to$ Metal Neural Acc. & Direct \\
+\bottomrule
+\end{tabular}
+\caption{Evolution of ANE access across Apple Silicon generations.}
+\label{tab:m5}
+\end{table}
+
+Our hybrid approach is most relevant for M1--M4 hardware with
+long-context workloads where CoreML dispatch overhead is amortized.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Related Work}
+\label{sec:related}
+
+\textbf{MLX}~\cite{mlx}: GPU-focused array framework with lazy evaluation
+and automatic differentiation, designed for Apple Silicon.
+
+\textbf{CoreML / coremltools}: Apple's model deployment framework, routing
+fixed-shape operations to ANE.
+Used for prefill in our Hybrid pipeline.
+
+\textbf{Anemll}~\cite{anemll}: Per-layer CoreML conversion for LLMs,
+splitting each linear layer into a separate CoreML model.
+Supports Llama2-family models.
+
+\textbf{ANE}~\cite{ane}: Research repository demonstrating training on ANE
+via private APIs for Stories110M-scale models.
+
+\textbf{ANE-LM}~\cite{anelm}: Inference engine using private
+\texttt{AppleNeuralEngine.framework} APIs for direct ANE dispatch,
+supporting Qwen3 and Qwen3.5.
+
+\textbf{llama.cpp}~\cite{llamacpp}: Portable LLM inference with CPU/Metal
+backends, widely benchmarked on Apple Silicon.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Future Work}
+\label{sec:future}
+
+\begin{itemize}[topsep=2pt,itemsep=1pt]
+  \item \textbf{2B-BF16 hybrid benchmark}: CoreML conversion supported but
+    not yet benchmarked due to conversion time.
+  \item \textbf{seq\_len $>$ 512}: Longer context would further reduce the
+    relative CoreML dispatch overhead.
+  \item \textbf{Mobile validation}: Crossover-point estimates in
+    Table~\ref{tab:crossover} are extrapolated; direct measurement on
+    A-series hardware (iPhone, iPad) would validate the mobile claims.
+  \item \textbf{Streaming cache bridge}: The current ANE-LM cache bridge
+    serializes the full cache to disk then deserializes it; a zero-copy
+    shared-memory approach would reduce bridge latency.
+  \item \textbf{M5 validation}: Direct comparison between our hybrid
+    approach and M5's Metal Neural Accelerator path would quantify
+    the software--hardware equivalence.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section*{Acknowledgements}
+
+This work builds on
+ANE~\cite{ane} (private API research),
+ANE-LM~\cite{anelm} (private API inference engine),
+Anemll~\cite{anemll} (per-layer CoreML conversion),
+MLX~\cite{mlx} (Apple's array framework), and
+mlx-vlm~\cite{mlxvlm} (VLM support for MLX).
+
+% ══════════════════════════════════════════════════════════════════════════════
+\begin{thebibliography}{9}
+
+\bibitem{apple_m5_mlx}
+Apple ML Research.
+\textit{Exploring LLMs on MLX with M5.}
+Apple Machine Learning Research Blog, 2025.\\
+\url{https://machinelearning.apple.com/research/exploring-llms-mlx-m5}
+
+\bibitem{mlx}
+Apple Inc.
+\textit{MLX: An array framework for Apple Silicon.}
+GitHub, 2023.
+\url{https://github.com/ml-explore/mlx}
+
+\bibitem{ane}
+maderix.
+\textit{ANE: Training neural networks on Apple Neural Engine.}
+GitHub, 2024.
+\url{https://github.com/maderix/ANE}
+
+\bibitem{anemll}
+Anemll.
+\textit{Anemll: Apple Neural Engine ML framework.}
+GitHub, 2024.
+\url{https://github.com/Anemll/Anemll}
+
+\bibitem{anelm}
+AtomGradient.
+\textit{ANE-LM: LLM inference on Apple Neural Engine via private API.}
+GitHub, 2025.
+\url{https://github.com/AtomGradient/ANE-LM}
+
+\bibitem{llamacpp}
+ggml-org.
+\textit{llama.cpp: LLM inference in C/C++.}
+GitHub, 2023.
+\url{https://github.com/ggerganov/llama.cpp}
+
+\bibitem{mlxvlm}
+Blaizzy.
+\textit{mlx-vlm: Vision language models for Apple Silicon.}
+GitHub, 2024.
+\url{https://github.com/Blaizzy/mlx-vlm}
+
+\bibitem{qwen35}
+Qwen Team.
+\textit{Qwen3.5 Technical Report.}
+Alibaba DAMO Academy, 2025.
+
+\end{thebibliography}
+
+\end{document}

@@ -1,0 +1,142 @@
+Working directory: /Users/alex/Documents/mlx-community/HybridInference2
+Models: ['0.8B', '2B-8bit', '2B-bf16', '9B-8bit']
+Backends: ['baseline_mlx']
+Prompt lengths: ['short', 'medium', 'long']
+Runs per config: 4
+Max generate tokens: 200
+
+
+============================================================
+Loading model: Qwen3.5-0.8B (backend=baseline_mlx)
+============================================================
+Loading Qwen3.5-0.8B ...
+  MLX model loaded in 5.0s
+  Qwen3.5-0.8B ready (coreml=OFF)
+
+[1/12] Qwen3.5-0.8B / baseline_mlx / short (4 runs)
+  Run 1: prefill=632ms decode=61.3tok/s ttft=633ms mem=3.42GB (warmup)
+  Run 2: prefill=57ms decode=71.5tok/s ttft=57ms mem=3.42GB 
+  Run 3: prefill=56ms decode=71.2tok/s ttft=56ms mem=3.42GB 
+  Run 4: prefill=56ms decode=71.6tok/s ttft=56ms mem=3.42GB 
+  → Median (3 runs): prefill=56ms decode=71.5tok/s ttft=56ms peak_mem=3.42GB
+
+[2/12] Qwen3.5-0.8B / baseline_mlx / medium (4 runs)
+  Run 1: prefill=291ms decode=70.4tok/s ttft=291ms mem=3.58GB (warmup)
+  Run 2: prefill=68ms decode=70.2tok/s ttft=69ms mem=3.58GB 
+  Run 3: prefill=69ms decode=69.7tok/s ttft=69ms mem=3.58GB 
+  Run 4: prefill=68ms decode=70.9tok/s ttft=69ms mem=3.58GB 
+  → Median (3 runs): prefill=68ms decode=70.2tok/s ttft=69ms peak_mem=3.58GB
+
+[3/12] Qwen3.5-0.8B / baseline_mlx / long (4 runs)
+  Run 1: prefill=160ms decode=69.3tok/s ttft=160ms mem=4.18GB (warmup)
+  Run 2: prefill=95ms decode=69.1tok/s ttft=95ms mem=4.18GB 
+  Run 3: prefill=96ms decode=68.7tok/s ttft=96ms mem=4.18GB 
+  Run 4: prefill=96ms decode=69.0tok/s ttft=96ms mem=4.18GB 
+  → Median (3 runs): prefill=96ms decode=69.0tok/s ttft=96ms peak_mem=4.18GB
+
+============================================================
+Loading model: Qwen3.5-2B-8bit (backend=baseline_mlx)
+============================================================
+Loading Qwen3.5-2B-8bit ...
+  MLX model loaded in 2.0s
+  Qwen3.5-2B-8bit ready (coreml=OFF)
+
+[4/12] Qwen3.5-2B-8bit / baseline_mlx / short (4 runs)
+  Run 1: prefill=40ms decode=142.0tok/s ttft=40ms mem=2.51GB (warmup)
+  Run 2: prefill=14ms decode=142.5tok/s ttft=14ms mem=2.51GB 
+  Run 3: prefill=14ms decode=140.5tok/s ttft=15ms mem=2.51GB 
+  Run 4: prefill=14ms decode=141.8tok/s ttft=14ms mem=2.51GB 
+  → Median (3 runs): prefill=14ms decode=141.8tok/s ttft=14ms peak_mem=2.51GB
+
+[5/12] Qwen3.5-2B-8bit / baseline_mlx / medium (4 runs)
+  Run 1: prefill=73ms decode=140.9tok/s ttft=74ms mem=2.74GB (warmup)
+  Run 2: prefill=72ms decode=141.3tok/s ttft=72ms mem=2.74GB 
+  Run 3: prefill=74ms decode=140.9tok/s ttft=74ms mem=2.74GB 
+  Run 4: prefill=72ms decode=141.0tok/s ttft=73ms mem=2.74GB 
+  → Median (3 runs): prefill=72ms decode=141.0tok/s ttft=73ms peak_mem=2.74GB
+
+[6/12] Qwen3.5-2B-8bit / baseline_mlx / long (4 runs)
+  Run 1: prefill=162ms decode=139.7tok/s ttft=162ms mem=3.23GB (warmup)
+  Run 2: prefill=162ms decode=138.9tok/s ttft=162ms mem=3.23GB 
+  Run 3: prefill=161ms decode=138.9tok/s ttft=162ms mem=3.23GB 
+  Run 4: prefill=162ms decode=139.7tok/s ttft=162ms mem=3.23GB 
+  → Median (3 runs): prefill=162ms decode=138.9tok/s ttft=162ms peak_mem=3.23GB
+
+============================================================
+Loading model: Qwen3.5-2B-bf16 (backend=baseline_mlx)
+============================================================
+Loading Qwen3.5-2B-bf16 ...
+  MLX model loaded in 2.1s
+  Qwen3.5-2B-bf16 ready (coreml=OFF)
+
+[7/12] Qwen3.5-2B-bf16 / baseline_mlx / short (4 runs)
+  Run 1: prefill=45ms decode=100.9tok/s ttft=45ms mem=4.16GB (warmup)
+  Run 2: prefill=22ms decode=101.3tok/s ttft=22ms mem=4.16GB 
+  Run 3: prefill=22ms decode=101.4tok/s ttft=22ms mem=4.16GB 
+  Run 4: prefill=22ms decode=101.2tok/s ttft=22ms mem=4.16GB 
+  → Median (3 runs): prefill=22ms decode=101.3tok/s ttft=22ms peak_mem=4.16GB
+
+[8/12] Qwen3.5-2B-bf16 / baseline_mlx / medium (4 runs)
+  Run 1: prefill=54ms decode=100.7tok/s ttft=54ms mem=4.37GB (warmup)
+  Run 2: prefill=55ms decode=100.6tok/s ttft=55ms mem=4.37GB 
+  Run 3: prefill=54ms decode=100.7tok/s ttft=54ms mem=4.37GB 
+  Run 4: prefill=54ms decode=100.5tok/s ttft=54ms mem=4.37GB 
+  → Median (3 runs): prefill=54ms decode=100.6tok/s ttft=54ms peak_mem=4.37GB
+
+[9/12] Qwen3.5-2B-bf16 / baseline_mlx / long (4 runs)
+  Run 1: prefill=122ms decode=100.0tok/s ttft=122ms mem=4.67GB (warmup)
+  Run 2: prefill=123ms decode=100.2tok/s ttft=123ms mem=4.67GB 
+  Run 3: prefill=123ms decode=99.5tok/s ttft=123ms mem=4.67GB 
+  Run 4: prefill=122ms decode=99.7tok/s ttft=122ms mem=4.67GB 
+  → Median (3 runs): prefill=123ms decode=99.7tok/s ttft=123ms peak_mem=4.67GB
+
+============================================================
+Loading model: Qwen3.5-9B-8bit (backend=baseline_mlx)
+============================================================
+Loading Qwen3.5-9B-8bit ...
+  MLX model loaded in 3.0s
+  Qwen3.5-9B-8bit ready (coreml=OFF)
+
+[10/12] Qwen3.5-9B-8bit / baseline_mlx / short (4 runs)
+  Run 1: prefill=89ms decode=56.4tok/s ttft=89ms mem=9.76GB (warmup)
+  Run 2: prefill=38ms decode=56.3tok/s ttft=39ms mem=9.76GB 
+  Run 3: prefill=38ms decode=56.5tok/s ttft=39ms mem=9.76GB 
+  Run 4: prefill=38ms decode=56.4tok/s ttft=39ms mem=9.76GB 
+  → Median (3 runs): prefill=38ms decode=56.4tok/s ttft=39ms peak_mem=9.76GB
+
+[11/12] Qwen3.5-9B-8bit / baseline_mlx / medium (4 runs)
+  Run 1: prefill=265ms decode=56.3tok/s ttft=265ms mem=10.00GB (warmup)
+  Run 2: prefill=265ms decode=56.1tok/s ttft=265ms mem=10.00GB 
+  Run 3: prefill=265ms decode=56.3tok/s ttft=265ms mem=10.00GB 
+  Run 4: prefill=265ms decode=56.1tok/s ttft=266ms mem=10.00GB 
+  → Median (3 runs): prefill=265ms decode=56.1tok/s ttft=265ms peak_mem=10.00GB
+
+[12/12] Qwen3.5-9B-8bit / baseline_mlx / long (4 runs)
+  Run 1: prefill=627ms decode=55.9tok/s ttft=627ms mem=10.43GB (warmup)
+  Run 2: prefill=627ms decode=55.8tok/s ttft=628ms mem=10.43GB 
+  Run 3: prefill=625ms decode=56.7tok/s ttft=625ms mem=10.43GB 
+  Run 4: prefill=625ms decode=56.5tok/s ttft=625ms mem=10.43GB 
+  → Median (3 runs): prefill=625ms decode=56.5tok/s ttft=625ms peak_mem=10.43GB
+
+==========================================================================================
+BENCHMARK SUMMARY
+==========================================================================================
+Model              Quant  Backend         Prompt     TTFT(ms)  Decode(t/s)   Mem(GB) Status    
+------------------------------------------------------------------------------------------
+Qwen3.5-0.8B       FP16   baseline_mlx    short            56         71.5      3.42 OK        
+Qwen3.5-0.8B       FP16   baseline_mlx    medium           69         70.2      3.58 OK        
+Qwen3.5-0.8B       FP16   baseline_mlx    long             96         69.0      4.18 OK        
+Qwen3.5-2B-8bit    8-bit  baseline_mlx    short            14        141.8      2.51 OK        
+Qwen3.5-2B-8bit    8-bit  baseline_mlx    medium           73        141.0      2.74 OK        
+Qwen3.5-2B-8bit    8-bit  baseline_mlx    long            162        138.9      3.23 OK        
+Qwen3.5-2B-bf16    BF16   baseline_mlx    short            22        101.3      4.16 OK        
+Qwen3.5-2B-bf16    BF16   baseline_mlx    medium           54        100.6      4.37 OK        
+Qwen3.5-2B-bf16    BF16   baseline_mlx    long            123         99.7      4.67 OK        
+Qwen3.5-9B-8bit    8-bit  baseline_mlx    short            39         56.4      9.76 OK        
+Qwen3.5-9B-8bit    8-bit  baseline_mlx    medium          265         56.1     10.00 OK        
+Qwen3.5-9B-8bit    8-bit  baseline_mlx    long            625         56.5     10.43 OK        
+==========================================================================================
+
+Results saved to:
+  /Users/alex/Documents/mlx-community/HybridInference2/results/benchmark_results.json
+  /Users/alex/Documents/mlx-community/HybridInference2/results/benchmark_results.csv

@@ -1,0 +1,35 @@
+ANE-LM: /Users/alex/Documents/mlx-community/HybridInference2/ANE-LM/build/ane-lm
+Model:  /Users/alex/Documents/mlx-community/Qwen3.5-0.8B
+Prompts: ['short', 'medium', 'long'], runs=4
+
+[short] 4 runs, run 1 is warmup
+  Run 1 (warmup)... prompt=18tok  ttft=754ms  decode=24.3tok/s
+  Run 2... prompt=18tok  ttft=978ms  decode=24.5tok/s
+  Run 3... prompt=18tok  ttft=769ms  decode=24.2tok/s
+  Run 4... prompt=18tok  ttft=758ms  decode=24.3tok/s
+  -> Median (3 runs): ttft=769ms  decode=24.3tok/s  prefill=23.4tok/s  prompt_tokens=18
+
+[medium] 4 runs, run 1 is warmup
+  Run 1 (warmup)... prompt=145tok  ttft=5963ms  decode=23.7tok/s
+  Run 2... prompt=145tok  ttft=5938ms  decode=23.7tok/s
+  Run 3... prompt=145tok  ttft=5867ms  decode=23.8tok/s
+  Run 4... prompt=145tok  ttft=5856ms  decode=23.8tok/s
+  -> Median (3 runs): ttft=5867ms  decode=23.8tok/s  prefill=24.7tok/s  prompt_tokens=145
+
+[long] 4 runs, run 1 is warmup
+  Run 1 (warmup)... prompt=422tok  ttft=17570ms  decode=23.0tok/s
+  Run 2... prompt=422tok  ttft=17831ms  decode=21.2tok/s
+  Run 3... prompt=422tok  ttft=18264ms  decode=23.0tok/s
+  Run 4... prompt=422tok  ttft=17530ms  decode=22.8tok/s
+  -> Median (3 runs): ttft=17831ms  decode=22.8tok/s  prefill=23.7tok/s  prompt_tokens=422
+
+==============================================================================
+ANE-LM BENCHMARK SUMMARY (M2 Ultra 192GB)
+==============================================================================
+Backend    Prompt    PrTok   TTFT(ms)  Prefill(t/s)  Decode(t/s)
+------------------------------------------------------------------------------
+ane_lm     short        18        769          23.4         24.3
+ane_lm     medium      145       5867          24.7         23.8
+ane_lm     long        422      17831          23.7         22.8
+
+Saved 3 new results to /Users/alex/Documents/mlx-community/HybridInference2/results/benchmark_results.json

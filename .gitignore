@@ -1,0 +1,27 @@
+# CoreML models (large binary files)
+models/
+*.mlpackage
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# External subprojects (tracked separately)
+ANE-LM/
+ANE/
+Anemll/
+
+# Node.js (md-to-pdf)
+node_modules/
+
+# Editor
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,69 @@
+Torch version 2.10.0 has not been tested with coremltools. You may run into unexpected errors. Torch 2.7.0 is the most recent version that has been tested.
+Working directory: /Users/alex/Documents/mlx-community/HybridInference2
+Models: ['0.8B']
+Backends: ['hybrid_ane']
+Prompt lengths: ['short', 'medium', 'long']
+Runs per config: 4
+Max generate tokens: 200
+
+Loading Qwen3.5-0.8B ...
+  MLX model loaded in 1.3s
+  Qwen3.5-0.8B ready (coreml=OFF)
+
+============================================================
+Loading: Qwen3.5-0.8B + CoreML (/Users/alex/Documents/mlx-community/HybridInference2/models/ane_qwen3_5-0_8b_prefill_seq64.mlpackage)
+============================================================
+Loading Qwen3.5-0.8B ...
+  MLX model loaded in 1.0s
+  CoreML model loaded in 103.1s
+  Qwen3.5-0.8B ready (coreml=ON)
+
+[1/3] Qwen3.5-0.8B / hybrid_ane / short (4 runs)
+  Run 1: prefill=2708ms decode=66.1tok/s ttft=2749ms mem=3.42GB (warmup)
+  Run 2: prefill=273ms decode=69.4tok/s ttft=274ms mem=3.42GB 
+  Run 3: prefill=254ms decode=69.2tok/s ttft=255ms mem=3.42GB 
+  Run 4: prefill=285ms decode=69.0tok/s ttft=286ms mem=3.42GB 
+  → Median (3 runs): prefill=273ms decode=69.2tok/s ttft=274ms peak_mem=3.42GB
+
+============================================================
+Loading: Qwen3.5-0.8B + CoreML (/Users/alex/Documents/mlx-community/HybridInference2/models/ane_qwen3_5-0_8b_prefill_seq256.mlpackage)
+============================================================
+Loading Qwen3.5-0.8B ...
+  MLX model loaded in 1.1s
+  CoreML model loaded in 3005.2s
+  Qwen3.5-0.8B ready (coreml=ON)
+
+[2/3] Qwen3.5-0.8B / hybrid_ane / medium (4 runs)
+  Run 1: prefill=32465ms decode=70.5tok/s ttft=32487ms mem=3.43GB (warmup)
+  Run 2: prefill=414ms decode=71.3tok/s ttft=415ms mem=3.43GB 
+  Run 3: prefill=406ms decode=71.3tok/s ttft=407ms mem=3.43GB 
+  Run 4: prefill=410ms decode=71.2tok/s ttft=411ms mem=3.43GB 
+  → Median (3 runs): prefill=410ms decode=71.3tok/s ttft=411ms peak_mem=3.43GB
+
+[3/3] 0.8B / hybrid_ane / long: CONVERSION_FAILED (no CoreML for seq_len needed)
+
+==========================================================================================
+BENCHMARK SUMMARY
+==========================================================================================
+Model              Quant  Backend         Prompt     TTFT(ms)  Decode(t/s)   Mem(GB) Status    
+------------------------------------------------------------------------------------------
+Qwen3.5-0.8B       FP16   baseline_mlx    short            56         71.5      3.42 OK        
+Qwen3.5-0.8B       FP16   baseline_mlx    medium           69         70.2      3.58 OK        
+Qwen3.5-0.8B       FP16   baseline_mlx    long             96         69.0      4.18 OK        
+Qwen3.5-2B-8bit    8-bit  baseline_mlx    short            14        141.8      2.51 OK        
+Qwen3.5-2B-8bit    8-bit  baseline_mlx    medium           73        141.0      2.74 OK        
+Qwen3.5-2B-8bit    8-bit  baseline_mlx    long            162        138.9      3.23 OK        
+Qwen3.5-2B-bf16    BF16   baseline_mlx    short            22        101.3      4.16 OK        
+Qwen3.5-2B-bf16    BF16   baseline_mlx    medium           54        100.6      4.37 OK        
+Qwen3.5-2B-bf16    BF16   baseline_mlx    long            123         99.7      4.67 OK        
+Qwen3.5-9B-8bit    8-bit  baseline_mlx    short            39         56.4      9.76 OK        
+Qwen3.5-9B-8bit    8-bit  baseline_mlx    medium          265         56.1     10.00 OK        
+Qwen3.5-9B-8bit    8-bit  baseline_mlx    long            625         56.5     10.43 OK        
+Qwen3.5-0.8B       FP16   hybrid_ane      short           274         69.2      3.42 OK        
+Qwen3.5-0.8B       FP16   hybrid_ane      medium          411         71.3      3.43 OK        
+Qwen3.5-0.8B       FP16   hybrid_ane      long                                       CONVERSION_FAILED
+==========================================================================================
+
+Results saved to:
+  /Users/alex/Documents/mlx-community/HybridInference2/results/benchmark_results.json
+  /Users/alex/Documents/mlx-community/HybridInference2/results/benchmark_results.csv
