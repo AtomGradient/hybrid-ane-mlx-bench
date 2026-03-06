@@ -39,7 +39,9 @@
 | Qwen3.5-0.8B | FP16 | medium | 133 | 256 | 410 | 325 | 411 | 71.3 | 3.43 | OK |
 | Qwen3.5-0.8B | FP16 | long | 410 | 512 | 99 | 4128 | 100 | 73.3 | 4.18 | OK |
 | Qwen3.5-2B | 8-bit | * | — | — | — | — | — | — | — | CONVERSION_FAILED: MLX 8-bit format incompatible with HF→CoreML |
-| Qwen3.5-2B | BF16 | * | — | — | — | — | — | — | — | PENDING |
+| Qwen3.5-2B | BF16 | short | 6 | 64 | 22 | 273 | 22 | 104.2 | 4.16 | OK |
+| Qwen3.5-2B | BF16 | medium | 133 | 256 | 54 | 2477 | 54 | 102.3 | 4.37 | OK |
+| Qwen3.5-2B | BF16 | long | 410 | 512 | — | — | — | — | — | PENDING (seq512 converting) |
 | Qwen3.5-9B | 8-bit | * | — | — | — | — | — | — | — | CONVERSION_FAILED: MLX 8-bit format incompatible with HF→CoreML |
 
 > CoreML conversion requires original FP16/BF16/FP32 HuggingFace weights.

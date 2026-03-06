@@ -316,5 +316,35 @@
     "peak_memory_gb": "",
     "total_time_ms": "",
     "note": "prefill=ANE-LM private API (measured); decode=MLX GPU (measured)"
+  },
+  {
+    "model": "Qwen3.5-2B-bf16",
+    "quant": "BF16",
+    "backend": "hybrid_ane",
+    "prompt_length": "short",
+    "status": "OK",
+    "prompt_tokens": 6,
+    "generated_tokens": 200,
+    "prefill_time_ms": 21.84,
+    "prefill_tokens_per_sec": 274.7,
+    "ttft_ms": 22.12,
+    "decode_tokens_per_sec": 104.2,
+    "peak_memory_gb": 4.16,
+    "total_time_ms": 1941.48
+  },
+  {
+    "model": "Qwen3.5-2B-bf16",
+    "quant": "BF16",
+    "backend": "hybrid_ane",
+    "prompt_length": "medium",
+    "status": "OK",
+    "prompt_tokens": 133,
+    "generated_tokens": 200,
+    "prefill_time_ms": 53.7,
+    "prefill_tokens_per_sec": 2476.8,
+    "ttft_ms": 54.02,
+    "decode_tokens_per_sec": 102.3,
+    "peak_memory_gb": 4.37,
+    "total_time_ms": 2009.86
   }
 ]

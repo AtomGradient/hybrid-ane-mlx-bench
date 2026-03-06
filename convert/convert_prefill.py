@@ -1,7 +1,8 @@
 """Convert Qwen3.5 to CoreML prefill model (.mlpackage).
 
-Loads the HuggingFace model, wraps it in the ANE-compatible model,
-traces with torch.jit.trace, then converts to CoreML via coremltools.
+Loads the HuggingFace model weights from safetensors, wraps them in the
+ANE-compatible model, traces with torch.jit.trace, then converts to CoreML
+via coremltools.
 
 Usage::
 
@@ -25,6 +26,80 @@ import numpy as np
 import torch
 
 
+# ---------------------------------------------------------------------------
+# Helpers (replaces deleted anemll_ext.hybrid_attention_wrapper)
+# ---------------------------------------------------------------------------
+
+def _is_linear_layer(layer_idx: int, full_attention_interval: int) -> bool:
+    """DeltaNet (linear attention) layers: 3 out of every 4."""
+    return (layer_idx + 1) % full_attention_interval != 0
+
+
+def _load_safetensors(model_path: str) -> dict:
+    """Load state dict directly from safetensors files (works for both
+    text-only and VLM model directories)."""
+    from safetensors.torch import load_file
+
+    model_dir = Path(model_path)
+    files = sorted(model_dir.glob("*.safetensors"))
+    if not files:
+        raise FileNotFoundError(f"No .safetensors files in {model_dir}")
+    state_dict = {}
+    for f in files:
+        state_dict.update(load_file(str(f)))
+    return state_dict
+
+
+def get_output_names(config: dict) -> list[str]:
+    """Return CoreML output tensor names for the full prefill model."""
+    tc = config.get("text_config", config)
+    num_layers = tc["num_hidden_layers"]
+    interval = tc.get("full_attention_interval", 4)
+    names = ["logits"]
+    for i in range(num_layers):
+        if _is_linear_layer(i, interval):
+            names.append(f"conv_state_{i}")
+            names.append(f"recurrent_state_{i}")
+        else:
+            names.append(f"past_key_{i}")
+            names.append(f"past_value_{i}")
+    return names
+
+
+def get_chunk_output_names(
+    config: dict, chunk_idx: int, num_chunks: int
+) -> list[str]:
+    """Return CoreML output tensor names for a single chunk.
+
+    First output is ``"hidden_states"`` for non-last chunks or ``"logits"``
+    for the last chunk.  Cache names use *global* layer indices.
+    """
+    tc = config.get("text_config", config)
+    num_layers = tc["num_hidden_layers"]
+    interval = tc.get("full_attention_interval", 4)
+
+    base, extra = divmod(num_layers, num_chunks)
+    start = sum(base + (1 if j < extra else 0) for j in range(chunk_idx))
+    chunk_size = base + (1 if chunk_idx < extra else 0)
+    end = start + chunk_size
+
+    is_last = chunk_idx == num_chunks - 1
+    names = ["logits" if is_last else "hidden_states"]
+
+    for i in range(start, end):
+        if _is_linear_layer(i, interval):
+            names.append(f"conv_state_{i}")
+            names.append(f"recurrent_state_{i}")
+        else:
+            names.append(f"past_key_{i}")
+            names.append(f"past_value_{i}")
+    return names
+
+
+# ---------------------------------------------------------------------------
+# Single (monolithic) conversion
+# ---------------------------------------------------------------------------
+
 def convert_one(
     model_path: str,
     seq_len: int,
@@ -39,28 +114,23 @@ def convert_one(
     print(f"Converting {model_name} (seq_len={seq_len})")
     print(f"{'='*60}")
 
-    # 1. Load HF model
-    print("1. Loading HF model...")
+    # 1. Load weights directly from safetensors
+    print("1. Loading weights from safetensors...")
     t0 = time.time()
-    from transformers import AutoModelForCausalLM
-
-    hf_model = AutoModelForCausalLM.from_pretrained(
-        model_path, torch_dtype=torch.float32, trust_remote_code=True
-    ).eval()
-    print(f"   HF model loaded in {time.time()-t0:.1f}s")
+    hf_state_dict = _load_safetensors(model_path)
+    print(f"   Weights loaded in {time.time()-t0:.1f}s")
 
     # 2. Build ANE model and load weights
     print("2. Building ANE model...")
     from convert.ane_qwen35 import ANEQwen35Prefill
 
     ane_model = ANEQwen35Prefill(config, last_logit_only=True, max_seq_len=seq_len)
-    ane_model.load_hf_weights(hf_model.state_dict())
+    ane_model.load_hf_weights(hf_state_dict)
     ane_model.eval()
     for p in ane_model.parameters():
         p.requires_grad = False
 
-    # Free HF model memory
-    del hf_model
+    del hf_state_dict
     gc.collect()
 
     # 3. Trace
@@ -74,9 +144,8 @@ def convert_one(
     # 4. CoreML conversion
     print("4. Converting to CoreML...")
     import coremltools as ct
-    from anemll_ext.hybrid_attention_wrapper import HybridPrefillWrapper
 
-    output_names = HybridPrefillWrapper.get_output_names(config)
+    output_names = get_output_names(config)
     ct_outputs = [ct.TensorType(name=name) for name in output_names]
 
     precision = (
@@ -110,6 +179,10 @@ def convert_one(
     return output_path
 
 
+# ---------------------------------------------------------------------------
+# Chunked conversion
+# ---------------------------------------------------------------------------
+
 def _convert_chunked(
     model_path: str,
     seq_len: int,
@@ -128,20 +201,13 @@ def _convert_chunked(
     print(f"Converting {model_name} (seq_len={seq_len}, {num_chunks} chunks)")
     print(f"{'='*60}")
 
-    # 1. Load HF weights once
-    print("1. Loading HF model weights...")
+    # 1. Load weights directly from safetensors
+    print("1. Loading weights from safetensors...")
     t0 = time.time()
-    from transformers import AutoModelForCausalLM
-    hf_model = AutoModelForCausalLM.from_pretrained(
-        model_path, torch_dtype=torch.float32, trust_remote_code=True
-    ).eval()
-    hf_state_dict = hf_model.state_dict()
-    del hf_model
-    gc.collect()
+    hf_state_dict = _load_safetensors(model_path)
     print(f"   Weights loaded in {time.time()-t0:.1f}s")
 
     import coremltools as ct
-    from anemll_ext.hybrid_attention_wrapper import HybridPrefillWrapper
     from convert.ane_qwen35 import ANEQwen35PrefillChunk
 
     precision = (
@@ -187,9 +253,7 @@ def _convert_chunked(
         print(f"   Traced in {time.time()-t0:.1f}s")
 
         # 4. CoreML conversion
-        output_names = HybridPrefillWrapper.get_chunk_output_names(
-            config, chunk_idx, num_chunks
-        )
+        output_names = get_chunk_output_names(config, chunk_idx, num_chunks)
         ct_outputs = [ct.TensorType(name=name) for name in output_names]
 
         t0 = time.time()

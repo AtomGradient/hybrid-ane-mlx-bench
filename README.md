@@ -61,6 +61,15 @@ the MLX GPU baseline. Results are combined to give end-to-end TTFT and decode me
 
 *ANE-LM adds chat template tokens (~12 system tokens). ANE-LM Hybrid phases benchmarked independently (prefill: ANE-LM, decode: MLX GPU).
 
+### TTFT — Qwen3.5-2B BF16 (Hybrid CoreML + MLX)
+
+| Prompt | Tokens | Baseline GPU | Hybrid ANE | Ratio |
+|--------|--------|-------------|-----------|-------|
+| short | 6 | 22 ms | 22 ms | 1.0× (equal) |
+| medium | 133 | 54 ms | 54 ms | 1.0× (equal) |
+
+Unlike 0.8B, the 2B BF16 model shows **zero dispatch overhead** — Hybrid TTFT matches GPU baseline at all tested prompt lengths. Decode: 102–104 tok/s (slightly exceeds baseline 100–101 tok/s).
+
 ## Repository Structure
 
 ```

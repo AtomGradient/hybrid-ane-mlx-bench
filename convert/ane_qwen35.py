@@ -524,6 +524,13 @@ class ANEQwen35Prefill(nn.Module):
             if len(target_shape) == 4 and len(val.shape) == 2:
                 val = val.view(val.shape[0], val.shape[1], 1, 1)
 
+            # Conv1d: permute [out, kernel, 1] → [out, 1, kernel]
+            if (len(target_shape) == 3 and len(val.shape) == 3
+                    and val.shape != target_shape
+                    and val.shape[0] == target_shape[0]
+                    and val.numel() == target_shape.numel()):
+                val = val.permute(0, 2, 1)
+
             if val.shape != target_shape:
                 skipped.append(
                     f"{hf_key} -> {ane_key}: shape {val.shape} vs {target_shape}"
@@ -558,7 +565,7 @@ def _map_hf_key_to_ane(hf_key: str, layer_offset: int = 0) -> str | None:
         For non-chunked models this is 0; for chunks it equals ``start_layer``.
     """
     key = hf_key
-    for prefix in ["model.model.", "model."]:
+    for prefix in ["language_model.model.", "model.model.", "model."]:
         if key.startswith(prefix):
             key = key[len(prefix):]
             break
@@ -752,6 +759,13 @@ class ANEQwen35PrefillChunk(nn.Module):
             # Reshape 2D [out, in] → 4D [out, in, 1, 1] for Conv2d
             if len(target_shape) == 4 and len(val.shape) == 2:
                 val = val.view(val.shape[0], val.shape[1], 1, 1)
+
+            # Conv1d: permute [out, kernel, 1] → [out, 1, kernel]
+            if (len(target_shape) == 3 and len(val.shape) == 3
+                    and val.shape != target_shape
+                    and val.shape[0] == target_shape[0]
+                    and val.numel() == target_shape.numel()):
+                val = val.permute(0, 2, 1)
 
             if val.shape != target_shape:
                 skipped.append(

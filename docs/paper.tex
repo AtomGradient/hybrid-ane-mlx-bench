@@ -409,6 +409,37 @@ long & 410 & 512 & 99 & 4{,}128 \\
 \label{tab:hybrid_ane}
 \end{table}
 
+Table~\ref{tab:hybrid_2b} extends the Hybrid CoreML+MLX results to the
+larger Qwen3.5-2B BF16 model.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Prompt & Tokens & seq\_len & TTFT & Decode \\
+ & & & (ms) & (tok/s) \\
+\midrule
+short & 6 & 64 & 22 & 104.2 \\
+medium & 133 & 256 & 54 & 102.3 \\
+\bottomrule
+\end{tabular}
+\caption{Hybrid CoreML+MLX results for Qwen3.5-2B BF16 (M2 Ultra).
+  TTFT matches the MLX GPU baseline (22\,ms / 54\,ms), while decode
+  throughput slightly exceeds baseline (101--104 vs.\ 100--101\,tok/s).
+  Long prompt (seq512) conversion pending.}
+\label{tab:hybrid_2b}
+\end{table}
+
+\textbf{Key finding}: for the 2B BF16 model, Hybrid CoreML+MLX matches
+MLX GPU performance at \emph{all} tested prompt lengths, with no dispatch
+overhead penalty.
+This contrasts with 0.8B, where short/medium prompts were 5--6$\times$
+slower.
+The likely cause is that 2B's larger hidden dimension (1536 vs.\ 1024)
+provides enough compute to amortize CoreML dispatch overhead even at
+seq64.
+
 Table~\ref{tab:ane_lm} shows ANE-LM sequential inference.
 
 \begin{table}[h]
@@ -508,10 +539,13 @@ parity --- but the current API is limited to single-token dispatch.
 
 \subsection{When Does the Hybrid CoreML Approach Help?}
 
-Based on M2 Ultra measurements, Hybrid CoreML+MLX is only beneficial when
+For \textbf{0.8B FP16} on M2 Ultra, Hybrid CoreML+MLX is only beneficial when
 prompt length exceeds $\approx$410 tokens (where CoreML overhead becomes
-negligible).
-For shorter prompts, MLX GPU is strictly better.
+negligible); for shorter prompts, MLX GPU is strictly better.
+However, \textbf{2B BF16} shows no dispatch penalty at any tested length
+(Table~\ref{tab:hybrid_2b}): TTFT matches GPU baseline even at 6 tokens.
+The larger model's compute-to-dispatch ratio amortizes CoreML overhead
+at all prompt lengths.
 Factors that shift the crossover point:
 \begin{itemize}[topsep=2pt,itemsep=1pt]
   \item \textbf{Weaker GPU}: M1 Max (32 cores) has $\approx$2$\times$
@@ -689,8 +723,9 @@ backends, widely benchmarked on Apple Silicon.
 \label{sec:future}
 
 \begin{itemize}[topsep=2pt,itemsep=1pt]
-  \item \textbf{2B-BF16 hybrid benchmark}: CoreML conversion supported but
-    not yet benchmarked due to conversion time.
+  \item \textbf{2B-BF16 long context and 9B hybrid benchmark}: 2B-BF16 short
+    and medium prompts now benchmarked (Table~\ref{tab:hybrid_2b}); seq512
+    and 9B conversions are in progress.
   \item \textbf{seq\_len $>$ 512}: Longer context would further reduce the
     relative CoreML dispatch overhead.
   \item \textbf{Mobile validation}: Crossover-point estimates in
