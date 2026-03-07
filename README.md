@@ -1,6 +1,6 @@
 # Hybrid ANE-MLX-Bench: Disaggregated LLM Inference on Apple Silicon
 
-Please refer here:[ANE batch preill VS MLX](https://github.com/AtomGradient/hybird-batch-prefill-on-ane)
+Please refer here:[ANE batch prefill vs MLX](https://github.com/AtomGradient/hybird-batch-prefill-on-ane)
 
 [![Paper PDF](https://img.shields.io/badge/paper-PDF-red)](https://atomgradient.github.io/hybrid-ane-mlx-bench/paper.pdf)
 [![GitHub Pages](https://img.shields.io/badge/website-live-blue)](hybrid-ane-mlx-bench)
