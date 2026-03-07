@@ -19,7 +19,7 @@ We benchmark five inference strategies for Qwen3.5 on Apple Silicon, revealing h
 
 \* On macOS 26.3, CoreML `compute_units=ALL` routes to GPU, not ANE (ANE power ≈ 0W). See paper Section 4.6.
 
-> **Key findings**: (1) CoreML `compute_units=ALL` on macOS 26.3 routes computation to GPU rather than ANE — the "hybrid ANE" results actually reflect CoreML GPU vs MLX GPU performance. (2) Genuine ANE batch dispatch via private API achieves 268 tok/s (0.8B), an 11.3× speedup over sequential dispatch, proving ANE hardware *can* match GPU-class throughput. (3) ANE prefill reduces GPU power from 62.05W to 0.22W (282× reduction). See companion project: [ANE-LM-Batch-Bench](https://github.com/AtomGradient/ANE-LM-Batch-Bench).
+> **Key findings**: (1) CoreML `compute_units=ALL` on macOS 26.3 routes computation to GPU rather than ANE — the "hybrid ANE" results actually reflect CoreML GPU vs MLX GPU performance. (2) Genuine ANE batch dispatch via private API achieves 268 tok/s (0.8B), an 11.3× speedup over sequential dispatch, proving ANE hardware *can* match GPU-class throughput. (3) ANE prefill reduces GPU power from 62.05W to 0.22W (282× reduction). See companion project: [hybrid-ane-mlx-bench](https://github.com/AtomGradient/hybrid-ane-mlx-bench).
 
 ## Four Approaches
 

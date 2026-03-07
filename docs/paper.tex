@@ -128,7 +128,7 @@ private \texttt{AppleNeuralEngine.framework} API to dispatch matmul
 operations directly to the ANE without the CoreML abstraction layer.
 This establishes the single-token ANE dispatch latency floor.
 
-\textbf{Contribution 3: ANE batch dispatch (ANE-LM-Batch-Bench).}
+\textbf{Contribution 3: ANE batch dispatch.}
 We extend the ANE-LM private API engine with a batched dispatch mode
 (32 tokens per ANE call)~\cite{anelmbatch}, achieving 268\,tok/s for
 0.8B and 173\,tok/s for 2B --- an 11.3$\times$ and 7.3$\times$ speedup
@@ -1120,9 +1120,9 @@ GitHub, 2024.
 
 \bibitem{anelmbatch}
 AtomGradient.
-\textit{ANE-LM-Batch-Bench: Batch dispatch benchmarks for Apple Neural Engine.}
+\textit{Hybrid ANE-MLX-Bench: Disaggregated LLM inference on Apple Silicon.}
 GitHub, 2026.
-\url{https://github.com/AtomGradient/ANE-LM-Batch-Bench}
+\url{https://github.com/AtomGradient/hybrid-ane-mlx-bench}
 
 \bibitem{qwen35}
 Qwen Team.
