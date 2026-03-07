@@ -766,5 +766,20 @@
     "power_ane_avg_mw": 0.0,
     "power_combined_avg_mw": 22467.0,
     "power_samples": 72
+  },
+  {
+    "model": "Qwen3.5-0.8B",
+    "quant": "FP16",
+    "backend": "hybrid_ane",
+    "prompt_length": "short",
+    "status": "OK",
+    "prompt_tokens": 6,
+    "generated_tokens": 200,
+    "prefill_time_ms": 184.61,
+    "prefill_tokens_per_sec": 32.5,
+    "ttft_ms": 185.45,
+    "decode_tokens_per_sec": 69.7,
+    "peak_memory_gb": 3.42,
+    "total_time_ms": 3053.84
   }
 ]
