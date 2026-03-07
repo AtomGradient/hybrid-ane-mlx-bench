@@ -83,7 +83,7 @@ class HybridInferenceEngine:
             t0 = time.time()
             self.coreml_model = ct.models.MLModel(
                 str(path),
-                compute_units=ct.ComputeUnit.CPU_AND_NE,
+                compute_units=ct.ComputeUnit.ALL,
             )
             print(f"  CoreML model loaded in {time.time() - t0:.1f}s")
             return
@@ -117,7 +117,7 @@ class HybridInferenceEngine:
         for cf in chunk_files:
             model = ct.models.MLModel(
                 str(cf),
-                compute_units=ct.ComputeUnit.CPU_AND_NE,
+                compute_units=ct.ComputeUnit.ALL,
             )
             self.coreml_chunks.append(model)
             print(f"  Loaded chunk: {cf.name}")

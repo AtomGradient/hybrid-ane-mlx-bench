@@ -334,13 +334,15 @@
         <span class="z">Apple Silicon 异构 LLM 推理</span>
     </h1>
     <p class="hero-sub e">
-        We compare four strategies for Qwen3.5 inference across Apple Silicon's compute units —
-        GPU-only (MLX), hybrid ANE+GPU (CoreML prefill + MLX decode), direct ANE private API (ANE-LM),
-        and ANE-LM Hybrid combining sequential ANE prefill with MLX GPU decode via a binary cache bridge.
+        We compare five strategies for Qwen3.5 inference across Apple Silicon's compute units —
+        GPU-only (MLX), hybrid CoreML+GPU (CoreML prefill + MLX decode), direct ANE private API (ANE-LM),
+        ANE-LM Hybrid (sequential ANE prefill + MLX GPU decode), and ANE-LM Batch (batched ANE dispatch + MLX GPU decode).
+        Key finding: CoreML <code>compute_units=ALL</code> on macOS 26.3 routes to GPU, not ANE.
     </p>
     <p class="hero-sub z">
-        我们对比四种 Qwen3.5 推理策略——纯 GPU（MLX）、混合 ANE+GPU（CoreML 预填充 + MLX 解码）、
-        ANE 私有 API（ANE-LM），以及通过二进制缓存桥接连接 ANE 顺序预填充与 MLX GPU 解码的 ANE-LM 混合推理。
+        我们对比五种 Qwen3.5 推理策略——纯 GPU（MLX）、混合 CoreML+GPU（CoreML 预填充 + MLX 解码）、
+        ANE 私有 API（ANE-LM 顺序/批量调度），以及 ANE-LM 混合推理。
+        关键发现：macOS 26.3 上 CoreML <code>compute_units=ALL</code> 实际路由到 GPU 而非 ANE。
         全部在 Apple M2 Ultra（192 GB）上实测。
     </p>
     <div class="chip-row">
@@ -359,9 +361,9 @@
         <div class="stat-label z">tok/s 解码速度 — 2B 8-bit MLX GPU</div>
     </div>
     <div class="stat-card">
-        <div class="stat-value val-hybrid">100 ms</div>
-        <div class="stat-label e">TTFT — Hybrid ANE (long, 410 tok)</div>
-        <div class="stat-label z">首字时延 — 混合 ANE（长 prompt，410 token）</div>
+        <div class="stat-value val-hybrid">268</div>
+        <div class="stat-label e">tok/s — ANE batch prefill (0.8B, private API)</div>
+        <div class="stat-label z">tok/s — ANE 批量预填充（0.8B，私有 API）</div>
     </div>
     <div class="stat-card">
         <div class="stat-value val-ane">24</div>
@@ -369,9 +371,9 @@
         <div class="stat-label z">tok/s — ANE-LM 私有 API（全部 prompt）</div>
     </div>
     <div class="stat-card">
-        <div class="stat-value" style="color:#e8ecf1;">~410</div>
-        <div class="stat-label e">tokens where ANE prefill ≈ GPU prefill</div>
-        <div class="stat-label z">token 处 ANE 预填充速度与 GPU 持平</div>
+        <div class="stat-value" style="color:#e8ecf1;">282×</div>
+        <div class="stat-label e">GPU power reduction with ANE prefill</div>
+        <div class="stat-label z">ANE 预填充 GPU 功耗降低倍数</div>
     </div>
 </div>
 
@@ -404,11 +406,13 @@
             <div class="finding-icon">⚡</div>
             <div class="finding-title"><span class="e">Hybrid CoreML + MLX</span><span class="z">混合 CoreML + MLX</span></div>
             <div class="finding-text e">
-                Batched prefill via CoreML (targeting ANE), decode via MLX GPU. Requires a custom
+                Batched prefill via CoreML, decode via MLX GPU. Requires a custom
                 KV-cache bridge for Qwen3.5's hybrid DeltaNet + full-attention architecture.
+                <strong>Note:</strong> On macOS 26.3, <code>compute_units=ALL</code> routes to GPU, not ANE (ANE power ≈ 0W).
             </div>
             <div class="finding-text z">
-                通过 CoreML（面向 ANE）进行批量预填充，通过 MLX GPU 解码。需要为 Qwen3.5 的混合 DeltaNet + 全注意力架构实现自定义 KV 缓存桥接。
+                通过 CoreML 进行批量预填充，通过 MLX GPU 解码。需要为 Qwen3.5 的混合 DeltaNet + 全注意力架构实现自定义 KV 缓存桥接。
+                <strong>注意：</strong>macOS 26.3 上 <code>compute_units=ALL</code> 路由到 GPU 而非 ANE（ANE 功耗 ≈ 0W）。
             </div>
         </div>
         <div class="finding-card ane">
@@ -464,9 +468,9 @@
     <h3><span class="e">Pipeline 2 — Hybrid CoreML + MLX</span><span class="z">管线 2 — 混合 CoreML + MLX</span></h3>
     <div class="pipeline">
         <div class="pipe-node hybrid">
-            <div class="pipe-title" style="color:var(--hybrid-orange)"><span class="e">Prefill (ANE via CoreML)</span><span class="z">预填充（ANE via CoreML）</span></div>
-            <div class="pipe-sub e">Batched forward pass. Fixed seq_len (64/256/512). Left-padded. Outputs cache as numpy arrays.</div>
-            <div class="pipe-sub z">批量前向传播。固定 seq_len（64/256/512）。左填充。以 numpy 数组输出缓存。</div>
+            <div class="pipe-title" style="color:var(--hybrid-orange)"><span class="e">Prefill (CoreML, compute_units=ALL*)</span><span class="z">预填充（CoreML，compute_units=ALL*）</span></div>
+            <div class="pipe-sub e">Batched forward pass. Fixed seq_len (64/256/512). Left-padded. *macOS 26.3: routes to GPU, not ANE.</div>
+            <div class="pipe-sub z">批量前向传播。固定 seq_len（64/256/512）。左填充。*macOS 26.3 上路由到 GPU 而非 ANE。</div>
         </div>
         <div class="pipe-arrow">→</div>
         <div class="pipe-node hybrid">
@@ -545,12 +549,12 @@
                 </div>
                 <div class="flow-arrow"><div class="flow-arrow-line ane-line"></div><div class="flow-arrow-head ane-head"></div></div>
                 <div class="flow-node fn-ane">
-                    <div class="flow-node-label">ANE · CoreML</div>
+                    <div class="flow-node-label">CoreML · GPU*</div>
                     <div class="flow-node-title"><span class="e">Prefill — compute-bound</span><span class="z">预填充 — 计算受限</span></div>
-                    <div class="flow-node-detail e">compute_units = ALL (macOS 26: CPU_AND_NE causes ANE IPC deadlock)<br>All prompt tokens processed in parallel<br>Output: logits + hybrid KV / DeltaNet state</div>
-                    <div class="flow-node-detail z">compute_units = ALL（macOS 26：CPU_AND_NE 会导致 ANE IPC 死锁）<br>所有 prompt token 并行处理<br>输出：logits + 混合 KV / DeltaNet 状态</div>
-                    <span class="badge badge-good e">✓ Low power — ANE hardware draws ~1–2 W vs GPU's 62 W†</span>
-                    <span class="badge badge-good z">✓ 低功耗 — ANE 约 1–2 W，GPU 高达 62 W†</span>
+                    <div class="flow-node-detail e">compute_units = ALL (*macOS 26.3: routes to GPU, not ANE)<br>All prompt tokens processed in parallel<br>Output: logits + hybrid KV / DeltaNet state</div>
+                    <div class="flow-node-detail z">compute_units = ALL（*macOS 26.3：路由到 GPU 而非 ANE）<br>所有 prompt token 并行处理<br>输出：logits + 混合 KV / DeltaNet 状态</div>
+                    <span class="badge badge-warn e">⚠ macOS 26.3: ANE power ≈ 0W — CoreML uses GPU</span>
+                    <span class="badge badge-warn z">⚠ macOS 26.3：ANE 功耗 ≈ 0W — CoreML 使用 GPU</span>
                 </div>
                 <div class="flow-arrow"><div class="flow-arrow-line bot-line"></div><div class="flow-arrow-head bot-head"></div><div class="flow-arrow-label">cache bridge</div></div>
                 <div class="flow-node fn-bottleneck">
@@ -638,8 +642,8 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td><span class="e">Prefill hardware</span><span class="z">预填充硬件</span></td><td class="good"><span class="e">ANE (CoreML, compute_units=ALL†)</span><span class="z">ANE（CoreML，compute_units=ALL†）</span></td><td><span class="e">GPU (Metal)</span><span class="z">GPU（Metal）</span></td></tr>
-                    <tr><td><span class="e">TTFT (long prompt)</span><span class="z">首字时延（长 prompt）</span></td><td class="good"><span class="e">Lower — ANE parallel compute</span><span class="z">更低 — ANE 并行算力</span></td><td class="slow"><span class="e">Higher — GPU compute-bound</span><span class="z">更高 — GPU 计算受限</span></td></tr>
+                    <tr><td><span class="e">Prefill hardware</span><span class="z">预填充硬件</span></td><td class="ok"><span class="e">CoreML GPU† (compute_units=ALL)</span><span class="z">CoreML GPU†（compute_units=ALL）</span></td><td><span class="e">GPU (Metal)</span><span class="z">GPU（Metal）</span></td></tr>
+                    <tr><td><span class="e">TTFT (long prompt)</span><span class="z">首字时延（长 prompt）</span></td><td class="ok"><span class="e">Similar — both use GPU†</span><span class="z">相近 — 两者均使用 GPU†</span></td><td class="ok"><span class="e">Similar — GPU compute-bound</span><span class="z">相近 — GPU 计算受限</span></td></tr>
                     <tr><td><span class="e">Prefill power (measured‡)</span><span class="z">预填充功耗（实测‡）</span></td><td class="good">GPU ~0.22 W + ANE ~1.58 W ≈ 1.8 W</td><td class="slow">GPU <strong>62.05 W</strong> (282×)</td></tr>
                     <tr><td><span class="e">Decode hardware</span><span class="z">解码硬件</span></td><td>GPU (MLX)</td><td>GPU (MLX)</td></tr>
                     <tr><td><span class="e">Decode speed</span><span class="z">解码速度</span></td><td><span class="e">= Identical (same GPU path)</span><span class="z">= 相同（同一 GPU 路径）</span></td><td><span class="e">= Identical</span><span class="z">= 相同</span></td></tr>
@@ -653,10 +657,10 @@
             </table>
         </div>
         <p style="font-size:0.75rem;color:var(--text-muted);padding:0.75rem 1.25rem;">
-            <span class="e">† macOS 26.3: <code>CPU_AND_NE</code> triggers ANE IPC daemon deadlock; <code>compute_units=ALL</code> must be used instead.<br>
-            ‡ ANE power (~0.22 W GPU + ~1.58 W ANE) measured via ANE-LM private API prefill. CoreML hybrid ANE power not measured separately but expected to be similar as both dispatch to the same ANE hardware.</span>
-            <span class="z">† macOS 26.3：<code>CPU_AND_NE</code> 会触发 ANE IPC 守护进程死锁，必须改用 <code>compute_units=ALL</code>。<br>
-            ‡ ANE 功耗（~0.22 W GPU + ~1.58 W ANE）由 ANE-LM 私有 API 预填充实测。CoreML 混合推理的 ANE 功耗未单独测量，但因两者均调度至同一 ANE 硬件，预计相近。</span>
+            <span class="e">† macOS 26.3: <code>CPU_AND_NE</code> triggers ANE IPC daemon deadlock; <code>compute_units=ALL</code> routes to GPU, not ANE (measured ANE power ≈ 0W across all CoreML hybrid runs).<br>
+            ‡ ANE power (~0.22 W GPU + ~1.58 W ANE) measured via ANE-LM private API prefill, which correctly dispatches to ANE hardware. CoreML does NOT use ANE on macOS 26.3.</span>
+            <span class="z">† macOS 26.3：<code>CPU_AND_NE</code> 会触发 ANE IPC 守护进程死锁；<code>compute_units=ALL</code> 路由到 GPU 而非 ANE（所有 CoreML 混合运行中 ANE 功耗 ≈ 0W）。<br>
+            ‡ ANE 功耗（~0.22 W GPU + ~1.58 W ANE）由 ANE-LM 私有 API 预填充实测，该 API 正确调度到 ANE 硬件。CoreML 在 macOS 26.3 上不使用 ANE。</span>
         </p>
     </div>
 
@@ -796,12 +800,14 @@
     <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;" class="e">
         * ANE-LM uses Qwen3.5 chat template, adding ~12 system-prompt tokens to each input.<br>
         * ANE-LM Hybrid: ANE-LM sequential prefill + MLX GPU decode, bridged via binary cache file. All numbers end-to-end measured.<br>
-        * ANE-LM Hybrid's slow TTFT is caused by the private API's sequential dispatch (~42 ms/token), not ANE hardware speed. CoreML batched prefill achieves 4,128 tok/s on the same ANE — proving the hardware can match GPU throughput when given batched input.
+        * ANE-LM Hybrid's slow TTFT is caused by the private API's sequential dispatch (~42 ms/token), not ANE hardware speed. ANE-LM batch dispatch (32 tok/call) achieves 268 tok/s (0.8B) — 11.3× faster than sequential.<br>
+        * CoreML Hybrid on macOS 26.3 routes to GPU (ANE power ≈ 0W). The 100ms TTFT at long prompt reflects CoreML GPU vs MLX GPU, not ANE vs GPU.
     </p>
     <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;" class="z">
         * ANE-LM 使用 Qwen3.5 对话模板，每个输入额外增加 ~12 个系统提示 token。<br>
         * ANE-LM Hybrid：ANE-LM 顺序预填充 + MLX GPU 解码，通过二进制缓存文件桥接。所有数据均为端到端实测。<br>
-        * ANE-LM Hybrid 的高 TTFT 源于私有 API 的逐 token 调度（~42 ms/token），而非 ANE 硬件速度。CoreML 批量预填充在同一 ANE 上达到 4,128 tok/s——证明硬件在批量输入下可匹敌 GPU 吞吐。
+        * ANE-LM Hybrid 的高 TTFT 源于私有 API 的逐 token 调度（~42 ms/token），而非 ANE 硬件速度。ANE-LM 批量调度（32 tok/call）达到 268 tok/s（0.8B）——比顺序调度快 11.3×。<br>
+        * macOS 26.3 上 CoreML Hybrid 路由到 GPU（ANE 功耗 ≈ 0W）。长 prompt 的 100ms TTFT 反映的是 CoreML GPU vs MLX GPU，而非 ANE vs GPU。
     </p>
 
     <h3><span class="e">Decode Throughput — 0.8B FP16 (all backends)</span><span class="z">解码吞吐量 — 0.8B FP16（全部后端）</span></h3>
@@ -840,7 +846,7 @@
             <div class="bar-row"><div class="bar-track"><div class="bar-fill bar-fill-gpu" style="width:100%"><span class="bar-val">69.0 tok/s</span></div></div></div>
         </div>
         <div class="bar-group">
-            <div class="bar-label"><span class="e">CoreML Hybrid (ANE prefill + GPU decode)</span><span class="z">CoreML 混合推理（ANE 预填充 + GPU 解码）</span></div>
+            <div class="bar-label"><span class="e">CoreML Hybrid (CoreML prefill + GPU decode)</span><span class="z">CoreML 混合推理（CoreML 预填充 + GPU 解码）</span></div>
             <div class="bar-row"><div class="bar-track"><div class="bar-fill bar-fill-hybrid" style="width:106%"><span class="bar-val">73.3 tok/s</span></div></div></div>
         </div>
         <div class="bar-group">
@@ -949,10 +955,10 @@
         </table>
     </div>
     <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;" class="e">
-        Unlike 0.8B where CoreML dispatch overhead added 200–340 ms, the 2B BF16 model shows <strong>zero overhead</strong> — Hybrid TTFT exactly matches GPU baseline at all three prompt lengths (short/medium/long). The larger hidden dimension (1536 vs 1024) amortizes CoreML dispatch cost even at seq64. Decode throughput (100–104 tok/s) matches baseline (100–101 tok/s).
+        Unlike 0.8B where CoreML dispatch overhead added 200–340 ms, the 2B BF16 model shows <strong>exact TTFT match</strong> with GPU baseline at all prompt lengths. This is consistent with CoreML routing to GPU on macOS 26.3 (ANE power ≈ 0W) — both paths use the same GPU hardware. Decode throughput (100–104 tok/s) matches baseline (100–101 tok/s).
     </p>
     <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.5rem;" class="z">
-        与 0.8B 中 CoreML 调度增加 200–340 ms 的开销不同，2B BF16 模型 <strong>零开销</strong> — 混合 TTFT 在所有 prompt 长度上精确匹配 GPU 基准。更大的隐层维度（1536 vs 1024）使 CoreML 调度成本即使在 seq64 也能被摊销。解码吞吐量（100–104 tok/s）匹配基准（100–101 tok/s）。
+        与 0.8B 中 CoreML 调度增加 200–340 ms 的开销不同，2B BF16 模型 TTFT <strong>精确匹配</strong> GPU 基准。这与 macOS 26.3 上 CoreML 路由到 GPU（ANE 功耗 ≈ 0W）一致——两条路径使用相同的 GPU 硬件。解码吞吐量（100–104 tok/s）匹配基准（100–101 tok/s）。
     </p>
 </section>
 
@@ -1125,11 +1131,12 @@
         </table>
     </div>
     <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;" class="e">
-        On devices with 6–8 GPU cores (most iPhones), ANE prefill is faster for virtually all practical
-        prompt lengths while consuming orders of magnitude less power.
+        Note: On macOS 26.3, these crossover points reflect CoreML GPU vs MLX GPU (not ANE vs GPU).
+        For genuine ANE prefill on mobile, use the ANE-LM private API batch dispatch which achieves 268 tok/s while drawing only 1.8W total.
     </p>
     <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;" class="z">
-        在 6–8 GPU 核心的设备（大多数 iPhone）上，ANE 预填充对几乎所有实际 prompt 长度都更快，同时功耗低数个数量级。
+        注意：在 macOS 26.3 上，这些交叉阈值反映的是 CoreML GPU vs MLX GPU（而非 ANE vs GPU）。
+        要在移动端实现真正的 ANE 预填充，请使用 ANE-LM 私有 API 批量调度，可达 268 tok/s 且总功耗仅 1.8W。
     </p>
 
     <h3><span class="e">Full Inference Power Consumption — Baseline MLX (GPU Only)</span><span class="z">完整推理功耗 — 基准 MLX（纯 GPU）</span></h3>
@@ -1250,28 +1257,33 @@
         </div>
         <div class="finding-card hybrid">
             <div class="finding-icon">🎯</div>
-            <div class="finding-title"><span class="e">ANE Crossover Depends on Model Size</span><span class="z">ANE 交叉阈值取决于模型大小</span></div>
+            <div class="finding-title"><span class="e">CoreML Routes to GPU on macOS 26.3</span><span class="z">macOS 26.3 上 CoreML 路由到 GPU</span></div>
             <div class="finding-text e">
-                For 0.8B: CoreML dispatch overhead (250–400 ms) dominates below ~410 tokens —
-                hybrid only matches GPU at seq512 (4,128 tok/s).<br>
-                For 2B BF16: <strong>zero dispatch overhead at all prompt lengths</strong> — hybrid TTFT equals
-                GPU baseline even at 6 tokens. Larger models amortize CoreML dispatch cost better.
+                <code>compute_units=ALL</code> on macOS 26.3 routes computation to GPU, not ANE (ANE power ≈ 0W across all runs).
+                The 2B BF16 "zero overhead" finding is explained by both CoreML and MLX using the same GPU hardware.<br>
+                For 0.8B: CoreML framework dispatch overhead (250–400 ms) still exists at short prompts;
+                at seq512, CoreML GPU matches MLX GPU throughput (4,128 tok/s).
             </div>
             <div class="finding-text z">
-                0.8B 模型：CoreML 调度开销（250–400 ms）在低于 ~410 token 时主导——混合方案仅在 seq512 时与 GPU 持平（4,128 tok/s）。<br>
-                2B BF16 模型：<strong>所有 prompt 长度零调度开销</strong> — 混合 TTFT 即使在 6 token 也与 GPU 基准持平。更大的模型更好地摊销 CoreML 调度成本。
+                macOS 26.3 上 <code>compute_units=ALL</code> 将计算路由到 GPU 而非 ANE（所有运行中 ANE 功耗 ≈ 0W）。
+                2B BF16 的"零开销"发现源于 CoreML 和 MLX 使用相同的 GPU 硬件。<br>
+                0.8B 模型：CoreML 框架调度开销（250–400 ms）在短 prompt 仍然存在；
+                seq512 时 CoreML GPU 与 MLX GPU 吞吐量匹配（4,128 tok/s）。
             </div>
         </div>
         <div class="finding-card ane">
             <div class="finding-icon">🔍</div>
-            <div class="finding-title"><span class="e">Sequential ANE ≠ Batched ANE</span><span class="z">顺序 ANE ≠ 批量 ANE</span></div>
+            <div class="finding-title"><span class="e">ANE Batch Dispatch: 11.3× Speedup</span><span class="z">ANE 批量调度：11.3× 加速</span></div>
             <div class="finding-text e">
-                ANE-LM's per-token dispatch via private API yields ~24 tok/s — 3× slower than GPU.
-                Each ANE kernel call takes ~42 ms, making TTFT proportional to prompt length.
-                Batched CoreML processing is fundamentally different from sequential dispatch.
+                ANE-LM sequential dispatch: ~24 tok/s (42 ms/token). Batch dispatch (32 tok/call):
+                <strong>268 tok/s</strong> (0.8B) and <strong>173 tok/s</strong> (2B) — 11.3× and 7.3× speedup.
+                This proves ANE hardware <em>can</em> achieve high throughput when given batched input.
+                The sequential bottleneck is an API dispatch pattern, not hardware.
             </div>
             <div class="finding-text z">
-                ANE-LM 的私有 API 逐 token 调度约 24 tok/s——比 GPU 慢 3×。每次 ANE 核调用约 43 ms，首字时延与 prompt 长度成正比。批量 CoreML 处理与顺序调度有本质区别。
+                ANE-LM 顺序调度：~24 tok/s（42 ms/token）。批量调度（32 tok/call）：
+                <strong>268 tok/s</strong>（0.8B）和 <strong>173 tok/s</strong>（2B）——11.3× 和 7.3× 加速。
+                证明 ANE 硬件在接收批量输入时<em>可以</em>实现高吞吐量。顺序瓶颈是 API 调度模式限制，而非硬件约束。
             </div>
         </div>
         <div class="finding-card gpu">
@@ -1302,30 +1314,31 @@
             <div class="finding-icon">🔋</div>
             <div class="finding-title"><span class="e">282× GPU Power Reduction</span><span class="z">GPU 功耗降低 282×</span></div>
             <div class="finding-text e">
-                ANE prefill measured at 0.22 W GPU + 1.58 W ANE = 1.8 W total, vs GPU prefill at
+                ANE prefill (via private API) measured at 0.22 W GPU + 1.58 W ANE = 1.8 W total, vs GPU prefill at
                 62.05 W — a 282× reduction. Saves 60.25 W per request. On mobile (TDP ~3–8 W),
                 GPU prefill would immediately trigger thermal throttling; ANE prefill fits within budget.
+                <strong>Note:</strong> This power data is from ANE-LM private API, not CoreML (which routes to GPU on macOS 26.3).
             </div>
             <div class="finding-text z">
-                ANE 预填充实测：GPU 0.22 W + ANE 1.58 W = 总计 1.8 W，对比 GPU 预填充 62.05 W——降低 282×。每次请求节省 60.25 W。移动端（TDP ~3–8 W）GPU 预填充会立即触发散热降频；ANE 预填充完全在热功耗预算以内。
+                ANE 预填充（通过私有 API）实测：GPU 0.22 W + ANE 1.58 W = 总计 1.8 W，对比 GPU 预填充 62.05 W——降低 282×。每次请求节省 60.25 W。移动端（TDP ~3–8 W）GPU 预填充会立即触发散热降频；ANE 预填充完全在热功耗预算以内。
+                <strong>注意：</strong>此功耗数据来自 ANE-LM 私有 API，而非 CoreML（macOS 26.3 上路由到 GPU）。
             </div>
         </div>
         <div class="finding-card hybrid">
             <div class="finding-icon">📈</div>
             <div class="finding-title"><span class="e">Larger Models + Longer Prompts = Best Hybrid</span><span class="z">越大模型 + 越长 Prompt = 混合推理越有利</span></div>
             <div class="finding-text e">
-                <strong>Model size ↑ → dispatch overhead ↓</strong>: 0.8B (hidden=1024) has 250 ms overhead at seq64;
-                2B (hidden=1536) has zero overhead. Larger hidden dims increase compute-per-dispatch, amortizing fixed IPC cost.<br>
-                <strong>Prompt length ↑ → prefill throughput ↑</strong>: 0.8B goes from 22 tok/s (seq64) to 4,128 tok/s (seq512). Less padding waste = higher ANE utilization.<br>
-                <strong>Tradeoffs</strong>: conversion time grows super-linearly (2B seq512: ~120 min vs 0.8B: ~22 min);
-                first-load ANE compilation takes 15+ min for 2B; storage doubles (MLX weights + CoreML packages).<br>
-                <strong>On mobile (A-series, 6–8 GPU cores)</strong>, crossover falls below 64 tokens — nearly all prompts benefit from ANE prefill.
+                <strong>Model size ↑ → dispatch overhead ↓</strong>: 0.8B (hidden=1024) has 250 ms CoreML overhead at seq64;
+                2B (hidden=1536) has zero overhead (both use GPU on macOS 26.3).<br>
+                <strong>Prompt length ↑ → prefill throughput ↑</strong>: CoreML GPU achieves 4,128 tok/s at seq512 (matching MLX GPU).<br>
+                <strong>For genuine ANE prefill</strong>, use ANE-LM batch dispatch: 268 tok/s (0.8B), 173 tok/s (2B) with 282× GPU power reduction.<br>
+                <strong>Tradeoffs</strong>: CoreML conversion grows super-linearly; storage doubles (MLX + CoreML packages).
             </div>
             <div class="finding-text z">
-                <strong>模型越大 → 调度开销越小</strong>：0.8B（hidden=1024）在 seq64 有 250 ms 开销；2B（hidden=1536）零开销。更大的隐层维度增加每次调度的计算量，摊销固定 IPC 成本。<br>
-                <strong>Prompt 越长 → 预填充吞吐越高</strong>：0.8B 从 22 tok/s（seq64）到 4,128 tok/s（seq512）。更少的填充浪费 = 更高的 ANE 利用率。<br>
-                <strong>反面约束</strong>：转换时间超线性增长（2B seq512: ~120 min vs 0.8B: ~22 min）；首次 ANE 编译 2B 需 15+ min；存储翻倍（MLX 权重 + CoreML 模型）。<br>
-                <strong>在移动设备（A 系列，6–8 GPU 核心）</strong>上，交叉阈值降至 64 token 以下——几乎所有 prompt 都受益于 ANE 预填充。
+                <strong>模型越大 → 调度开销越小</strong>：0.8B（hidden=1024）在 seq64 有 250 ms CoreML 开销；2B（hidden=1536）零开销（macOS 26.3 上两者均使用 GPU）。<br>
+                <strong>Prompt 越长 → 预填充吞吐越高</strong>：CoreML GPU 在 seq512 达到 4,128 tok/s（与 MLX GPU 匹配）。<br>
+                <strong>真正的 ANE 预填充</strong>请使用 ANE-LM 批量调度：268 tok/s（0.8B），173 tok/s（2B），GPU 功耗降低 282×。<br>
+                <strong>反面约束</strong>：CoreML 转换时间超线性增长；存储翻倍（MLX + CoreML 模型）。
             </div>
         </div>
         <div class="finding-card ane">

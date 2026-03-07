@@ -3,20 +3,23 @@
 [![Paper PDF](https://img.shields.io/badge/paper-PDF-red)](https://atomgradient.github.io/hybrid-ane-mlx-bench/paper.pdf)
 [![GitHub Pages](https://img.shields.io/badge/website-live-blue)](hybrid-ane-mlx-bench)
 
-**Paper**: [Disaggregated LLM Inference on Apple Silicon: CoreML ANE Prefill + MLX GPU Decode](https://atomgradient.github.io/hybrid-ane-mlx-bench/paper.pdf)
+**Paper**: [Disaggregated LLM Inference on Apple Silicon: CoreML and ANE Private API Prefill + MLX GPU Decode](https://atomgradient.github.io/hybrid-ane-mlx-bench/paper.pdf)
 
 **Website**: [atomgradient.github.io/hybrid-ane-mlx-bench](https://atomgradient.github.io/hybrid-ane-mlx-bench)
 
-We benchmark four inference strategies for Qwen3.5 on Apple Silicon, revealing how the Neural Engine (ANE), GPU, and private ANE APIs compare for prefill and decode:
+We benchmark five inference strategies for Qwen3.5 on Apple Silicon, revealing how the Neural Engine (ANE), GPU, and private ANE APIs compare for prefill and decode:
 
 | Strategy | Prefill | Decode | TTFT (long, 410 tok) |
 |----------|---------|--------|----------------------|
 | **MLX GPU** (baseline) | GPU batched | GPU | **96 ms** |
-| **CoreML + MLX** (hybrid) | ANE batched | GPU | **100 ms** |
+| **CoreML + MLX** (hybrid) | CoreML batched* | GPU | **100 ms** |
 | **ANE-LM** (private API) | ANE sequential | ANE | 17,831 ms |
 | **ANE-LM Hybrid** | ANE sequential | GPU | 17,601 ms |
+| **ANE-LM Batch** | ANE batch (32 tok) | GPU | ~276 ms |
 
-> **Key finding**: ANE batched prefill (CoreML, seq512) reaches GPU-level throughput at ~410 prompt tokens. Sequential ANE dispatch (private API) caps at ~24 tok/s regardless of prompt length — 3× slower than GPU decode. Replacing ANE decode with GPU decode (ANE-LM Hybrid) gives 3× better decode but cannot fix the sequential-ANE prefill bottleneck.
+\* On macOS 26.3, CoreML `compute_units=ALL` routes to GPU, not ANE (ANE power ≈ 0W). See paper Section 4.6.
+
+> **Key findings**: (1) CoreML `compute_units=ALL` on macOS 26.3 routes computation to GPU rather than ANE — the "hybrid ANE" results actually reflect CoreML GPU vs MLX GPU performance. (2) Genuine ANE batch dispatch via private API achieves 268 tok/s (0.8B), an 11.3× speedup over sequential dispatch, proving ANE hardware *can* match GPU-class throughput. (3) ANE prefill reduces GPU power from 62.05W to 0.22W (282× reduction). See companion project: [ANE-LM-Batch-Bench](https://github.com/AtomGradient/ANE-LM-Batch-Bench).
 
 ## Four Approaches
 
@@ -24,11 +27,12 @@ We benchmark four inference strategies for Qwen3.5 on Apple Silicon, revealing h
 Pure GPU inference via [MLX](https://github.com/ml-explore/mlx). Dynamic shapes, lazy evaluation. Benchmarked across four Qwen3.5 variants (0.8B–9B).
 
 ### 2. Hybrid CoreML + MLX
-CoreML prefill (ANE, fixed seq_len) → KV-cache bridge → MLX decode (GPU).
+CoreML prefill (fixed seq_len) → KV-cache bridge → MLX decode (GPU).
 
 - Converts Linear → Conv2d for ANE compatibility
 - Custom bridge for Qwen3.5's hybrid DeltaNet + full-attention cache format
-- First-load ANE compilation: seq64 ≈ 2 min, seq256 ≈ 50 min, seq512 ≈ 97 min (one-time, cached)
+- First-load compilation: seq64 ≈ 2 min, seq256 ≈ 50 min, seq512 ≈ 97 min (one-time, cached)
+- **Note**: On macOS 26.3, `compute_units=ALL` routes to GPU, not ANE (measured ANE power ≈ 0W)
 
 ### 3. ANE-LM (Private API)
 C++/ObjC inference using `AppleNeuralEngine.framework` private APIs directly. See [ANE-LM](https://github.com/AtomGradient/ANE-LM).
@@ -51,15 +55,16 @@ the MLX GPU baseline. Results are combined to give end-to-end TTFT and decode me
 | Qwen3.5-2B | BF16 | 100–101 | 4.2–4.7 GB |
 | Qwen3.5-9B | 8-bit | 56–57 | 9.8–10.4 GB |
 
-### TTFT — Qwen3.5-0.8B (all four pipelines)
+### TTFT — Qwen3.5-0.8B (all pipelines)
 
-| Prompt | Tokens | GPU | Hybrid ANE | ANE-LM | ANE-LM Hybrid |
-|--------|--------|-----|-----------|--------|---------------|
-| short | 6 / 18* | 56 ms | 274 ms | 769 ms | 767 ms |
-| medium | 133 / 145* | 69 ms | 411 ms | 5,867 ms | 6,060 ms |
-| long | 410 / 422* | 96 ms | 100 ms | 17,831 ms | 17,601 ms |
+| Prompt | Tokens | GPU | CoreML Hybrid* | ANE-LM | ANE-LM Hybrid | ANE-LM Batch |
+|--------|--------|-----|-----------|--------|---------------|-------------|
+| short | 6 / 18† | 56 ms | 274 ms | 769 ms | 767 ms | — |
+| medium | 133 / 145† | 69 ms | 411 ms | 5,867 ms | 6,060 ms | — |
+| long | 410 / 422† | 96 ms | 100 ms | 17,831 ms | 17,601 ms | ~276 ms |
 
-*ANE-LM adds chat template tokens (~12 system tokens). ANE-LM Hybrid phases benchmarked independently (prefill: ANE-LM, decode: MLX GPU).
+\* CoreML `compute_units=ALL` routes to GPU on macOS 26.3 (ANE power ≈ 0W).
+† ANE-LM adds chat template tokens (~12 system tokens). ANE-LM Batch: 268 tok/s prefill at 74 tokens (11.3× speedup over sequential).
 
 ### TTFT — Qwen3.5-2B BF16 (Hybrid CoreML + MLX)
 
@@ -69,7 +74,7 @@ the MLX GPU baseline. Results are combined to give end-to-end TTFT and decode me
 | medium | 133 | 54 ms | 54 ms | 1.0× (equal) |
 | long | 410 | 123 ms | 122 ms | 0.99× (equal) |
 
-Unlike 0.8B, the 2B BF16 model shows **zero dispatch overhead** — Hybrid TTFT matches GPU baseline at all three prompt lengths. Decode: 100–104 tok/s (matches baseline 100–101 tok/s).
+The 2B BF16 Hybrid TTFT exactly matches GPU baseline at all prompt lengths — consistent with CoreML routing to GPU on macOS 26.3. Decode: 100–104 tok/s (matches baseline 100–101 tok/s).
 
 ### TTFT — Qwen3.5-9B 8-bit (Hybrid CoreML + MLX)
 
@@ -79,7 +84,7 @@ Unlike 0.8B, the 2B BF16 model shows **zero dispatch overhead** — Hybrid TTFT 
 | medium | 133 | 265 ms | 672 ms | 2.5× slower |
 | long | 410 | 625 ms | 1,265 ms | 2.0× slower |
 
-The 9B model shows **no crossover point** — hybrid ANE is always slower than GPU baseline. Contributing factors: 4-chunk CoreML dispatch overhead, and mixed-precision cache bridge (FP16 CoreML prefill → 8-bit MLX decode) causes ~11-16% decode degradation (47.6-50.0 vs 56.1-56.5 tok/s).
+The 9B model shows **no crossover point** — CoreML hybrid is always slower than GPU baseline. Contributing factors: 4-chunk CoreML dispatch overhead, and mixed-precision cache bridge (FP16 CoreML prefill → 8-bit MLX decode) causes ~11-16% decode degradation (47.6-50.0 vs 56.1-56.5 tok/s). Since CoreML routes to GPU on macOS 26.3, the overhead is purely from CoreML framework dispatch, not ANE hardware.
 
 ## Repository Structure
 
@@ -162,7 +167,7 @@ python tests/benchmark_ane_lm_hybrid.py --runs 4 --append
 - Requires original HF weights (FP16/BF16). MLX 8-bit quantized models are **not** compatible.
 - First CoreML load triggers on-device ANE kernel compilation. This is a one-time cost:
   - seq64: ~2 min; seq256: ~50 min; seq512 (2 chunks): ~97 min
-- On macOS 26.3, use `compute_units=ALL` (not `CPU_AND_NE` — causes ANE IPC deadlock).
+- On macOS 26.3, use `compute_units=ALL` (not `CPU_AND_NE` — causes ANE IPC deadlock). Note: `ALL` routes to GPU, not ANE (ANE power ≈ 0W).
 - For seq512, use `--num-chunks 2` to split the 28-layer model for faster MIL compilation.
 
 ## Hardware
